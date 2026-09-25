@@ -1,111 +1,77 @@
-# Reveille — Poem Alarm Clock
+# Reveille
 
-A creative morning alarm that wakes you by reading a poem aloud instead of blaring a
-tone — narrative or surprising public-domain poetry, with a fresh one fetched daily
-via Google's Gemini API so you don't hear the same poem on repeat.
+**An alarm clock that wakes you with a poem read aloud.**
 
-This is a **portfolio project**: a static, no-backend, no-build-step web app meant
-to be forked, run locally, or hosted for free on GitHub Pages. It is not distributed
-through an app store and is not a commercial product.
+Instead of a beeping alarm, Reveille reads you a short public-domain poem while the screen brightens like a sunrise. The poems are chosen for mornings: a scene unfolds, the imagery is fresh, and the ending is left open, so you wake up with something to think about. Add a free Google Gemini key and a natural voice reads to you, with a new poem found for you every day.
 
-**[Live demo →](#)** _(add your GitHub Pages URL here once deployed)_
+<p align="center">
+  <img src="docs/screenshots/home.png" width="240" alt="Alarm screen: large serif clock over a horizon with a rising sun">
+  <img src="docs/screenshots/ringing.png" width="240" alt="Wake-up screen: poem lines lighting up as they're read">
+  <img src="docs/screenshots/poems.png" width="240" alt="Poem library and mood search">
+</p>
+
+## Get it
+
+| | |
+|---|---|
+| **Android** | [Download the app](https://github.com/VincentKovar/reveille/releases/latest/download/Reveille.apk), then follow the **[Android install guide](docs/INSTALL-ANDROID.md)**. Rings even when your phone is locked. |
+| **iPhone** | Open **[vincentkovar.github.io/reveille](https://vincentkovar.github.io/reveille/)** in Safari and add it to your Home Screen. See the **[iPhone guide](docs/INSTALL-IPHONE.md)**. Rings while open on your nightstand. |
+
+It's free, with no account, no ads, and no tracking. You bring your own (free) Gemini API key, or use your phone's built-in voice with no key at all.
 
 ## What it does
 
-- Set a wake-up time; when it hits, the app reads a poem aloud with Gemini's
-  text-to-speech, using a voice/persona you choose in Settings.
-- Poems are sourced from a small curated public-domain library, plus a poem
-  auto-fetched from Gemini once a day so it stays fresh — a local history log
-  makes sure you don't hear the same poem again for 30 days.
-- A "Vault" tab to browse/preview all poems, and a "Journal" tab to jot down
-  whatever image or thought the morning's poem left behind.
-- Installable to your phone's home screen (PWA) for a full-screen, app-like feel.
+- **Multiple alarms** with repeat days (weekdays, weekends, any combination, or once).
+- **Poem read aloud** by one of 12 Gemini voices, with a delivery style you describe in plain words ("slowly, like waking a friend at sunrise"), or by your phone's own voice.
+- **A fresh poem daily**, looked up by Gemini, or pick one for a mood: *"first snow, empty street."* A 30-day history keeps poems from repeating.
+- **Fail-safe wake-up:** the voice fades in gently, and if it can't start (or you drift back to sleep after the poem), a bell chime starts and climbs to full volume until you tap *I'm up*.
+- **Works offline:** your next poem is recorded ahead of time, and all fonts and code are bundled with the app.
+- **Morning journal** that opens right after you wake, prompted by the poem you just heard.
+- **Guided setup** that walks new users through the API key, first alarm, and permissions.
 
-## Before you start: a real limitation, stated honestly
+## How it works
 
-This is a **static web app with no backend or native code** — so it cannot
-guarantee firing while your phone is locked or the browser/app is fully
-backgrounded. Android (and especially iOS) will throttle or suspend JavaScript
-timers in an inactive tab. There is no way around this without either a native
-app (App Store distribution) or a backend push-notification server, both of
-which are intentionally out of scope for this project.
-
-**What actually works well:** treat it like a real bedside alarm clock — install
-it to your home screen, leave the app open in the foreground, and keep your
-phone plugged in overnight. That's a well-supported, everyday usage pattern and
-is what this app is designed around.
-
-## Setup (for your own copy)
-
-1. **Get a free Gemini API key** at [Google AI Studio](https://aistudio.google.com/app/apikey).
-   Google's free tier is enough for personal daily use of this app.
-2. **Get the code**: fork this repo, or download it as a ZIP (`Code → Download ZIP`
-   on GitHub) and unzip it.
-3. **Run it locally.** Because the service worker / PWA install requires a real
-   origin (not `file://`), serve the folder instead of double-clicking `index.html`:
-   ```bash
-   npx serve .
-   # or
-   python3 -m http.server 8080
-   ```
-   Then open the printed `http://localhost:...` URL in your browser.
-4. **Open the app → Settings tab → paste your Gemini API key.** It's saved only
-   in that browser's `localStorage` — it is never written to any file, never
-   committed to the repo, and never sent anywhere except directly to Google's
-   Gemini API from your own browser.
-5. **Set your wake-up time and voice**, then hit "Test Alarm & Poem Voice Now"
-   to confirm everything works end-to-end.
-6. **Install to your home screen** (on Android Chrome: menu → "Add to Home
-   Screen" / "Install app") for the best full-screen experience.
-
-## Deploying your own public copy (GitHub Pages)
-
-1. Push your fork to GitHub.
-2. Repo Settings → Pages → set source to the `main` branch, root folder.
-3. GitHub will give you a URL like `https://yourname.github.io/your-repo/`.
-   Because everything (including the API key) is client-side, this is safe to
-   host publicly — each visitor pastes in *their own* key, which stays in
-   *their* browser only. You never see or pay for anyone else's usage.
-
-## Project structure
+Reveille is one web app (plain HTML, CSS, and JavaScript, no framework and no build step) that ships two ways:
 
 ```
-index.html      # App shell (markup + Tailwind CDN)
-manifest.json   # PWA manifest (installable to home screen)
-sw.js           # Service worker (offline app-shell caching only)
-icons/          # App icons
-js/
-  config.js     # Editable constants (support link, model names, tuning)
-  storage.js    # localStorage helpers (settings, API key, poem history, journal)
-  poems.js      # Curated fallback poem library + no-repeat local selection
-  gemini.js     # Gemini poem-fetch + text-to-speech calls
-  app.js        # UI wiring: tabs, clock, alarm logic, settings persistence
+www/                      the whole app, shared by both platforms
+  js/schedule.js          alarm maths (unit-tested)
+  js/platform.js          one interface, two implementations ↓
+  js/gemini.js            poem lookup + text-to-speech
+android/                  Capacitor wrapper + native alarm engine (Java)
+  AlarmScheduler.java     books the next ring with AlarmManager.setAlarmClock
+  AlarmService.java       lock-screen alarm, wake lock, plays the poem
+  AlarmAudio.java         alarm-channel audio, fade-in, fail-safe chime
+  ReveilleAlarmPlugin.java  the bridge called from platform.js
 ```
 
-No build step, no framework, no bundler — edit and refresh.
+- **On Android**, alarms are booked with `AlarmManager.setAlarmClock`, the same mechanism as the built-in Clock app. They fire on time through Doze, after the app is closed, and after a reboot. At ring time a foreground service turns the screen on over the lock screen and plays the pre-recorded poem itself, on the **alarm** audio stream, before the web layer has even loaded. The fail-safe chime is native too, so it doesn't depend on the WebView.
+- **In a browser or on iPhone**, alarms are checked by a timer while the app is open, audio goes through Web Audio (so the volume can fade in on iOS), and a Wake Lock keeps the screen on in nightstand mode. Web apps can't wake a locked phone; Reveille says so plainly instead of pretending otherwise.
+- **Gemini** is called straight from the device with the person's own key, which never touches a server of mine. The code uses Google's current Interactions API and falls back to the older `generateContent` API, so a Google-side API change doesn't break it.
 
-## Customizing your fork
+## Build it yourself
 
-- **Poem library**: add/edit entries in `js/poems.js`.
-- **Voice & persona defaults**: edit the `<select>`/`<input>` defaults in
-  `index.html`, or just change them once in Settings (they persist).
-- **How often a new poem is fetched / how long repeats are avoided**: tune
-  `ORACLE_PREFETCH_INTERVAL_HOURS` and `POEM_HISTORY_WINDOW_DAYS` in
-  `js/config.js`.
-- **Support link (see below)**: set `SUPPORT_LINK` in `js/config.js`.
-
-## Support this project (optional, future)
-
-If you'd like to support continued work on this project, a "Buy Me a Coffee"
-(or similar) link can be enabled by setting `SUPPORT_LINK` in `js/config.js`:
-
-```js
-const SUPPORT_LINK = "https://www.buymeacoffee.com/yourname";
+**Web version:** no build step.
+```bash
+npm run dev          # serves www/ at http://localhost:8125
+npm test             # schedule logic tests
 ```
 
-Leave it as an empty string (the default) to keep the app free of any support
-prompts — it's entirely optional and hidden until you opt in.
+**Android app:** needs JDK 21 and the Android SDK (platform 36).
+```bash
+npm install
+npm run build:android    # both editions → release/
+```
+Without a signing key configured, APKs are signed with the debug key. That's fine for personal use. To sign releases, see [docs/PERSONAL-EDITION.md](docs/PERSONAL-EDITION.md).
 
-## License
+**Don't want to install anything?** Fork this repo. The **Build Android app** GitHub Action builds an installable APK for you on every push (Actions tab → latest run → *Artifacts*).
 
-MIT — see [LICENSE](LICENSE). Fork it, remix it, make it yours.
+**Making your own version:** change `appId` in `capacitor.config.json` and `applicationId`/`namespace` in `android/app/build.gradle`, and your name in `www/js/config.js`.
+
+## Poems and credits
+
+The built-in poems are in the public domain in the United States. Poems found by Gemini are looked up by an AI, so check their wording against a trusted source before quoting them.
+
+Typefaces: [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant) and [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans), both under the SIL Open Font License.
+
+Designed and built by **Vincent Kovar**. Released under the [MIT License](LICENSE): fork it, remix it, make it yours.

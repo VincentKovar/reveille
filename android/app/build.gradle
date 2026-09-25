@@ -1,0 +1,96 @@
+apply plugin: 'com.android.application'
+
+// Release signing: keystore details live OUTSIDE the repo so they're never published.
+// Default location ~/.reveille-signing/keystore.properties (override with REVEILLE_SIGNING_PROPS).
+def signingPropsFile = file(System.getenv("REVEILLE_SIGNING_PROPS") ?: "${System.getProperty('user.home')}/.reveille-signing/keystore.properties")
+def signingProps = new Properties()
+if (signingPropsFile.exists()) signingPropsFile.withInputStream { signingProps.load(it) }
+
+android {
+    namespace = "com.vincentkovar.reveille"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.vincentkovar.reveille"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 2
+        versionName "2.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildFeatures {
+        buildConfig true
+        resValues true
+    }
+
+    // Two editions from one codebase. Different app IDs, so both can be installed side by side.
+    flavorDimensions = ["edition"]
+    productFlavors {
+        portfolio {
+            dimension "edition"
+            resValue "string", "app_name", "Reveille"
+            resValue "string", "title_activity_main", "Reveille"
+            buildConfigField "String", "EDITION", '"portfolio"'
+        }
+        personal {
+            dimension "edition"
+            applicationIdSuffix ".vk"
+            resValue "string", "app_name", "Reveille VK"
+            resValue "string", "title_activity_main", "Reveille VK"
+            buildConfigField "String", "EDITION", '"personal"'
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (signingProps["storeFile"]) {
+                storeFile file(signingProps["storeFile"])
+                storePassword signingProps["storePassword"]
+                keyAlias signingProps["keyAlias"]
+                keyPassword signingProps["keyPassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingProps["storeFile"] ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

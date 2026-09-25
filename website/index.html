@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reveille: an alarm clock that reads you a poem</title>
+<meta name="description" content="Wake up to a poem read aloud while your screen brightens like a sunrise. Free for Android and iPhone.">
+<meta property="og:title" content="Reveille: wake up to a poem">
+<meta property="og:description" content="An alarm clock that reads you a short poem while your screen brightens like a sunrise.">
+<meta name="theme-color" content="#0E1020">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+    ============ EDIT THESE ============
+    The three links this page uses. Change them in the script at the bottom
+    (look for LINKS), then upload this single file to your website.
+    ====================================
+-->
+<style>
+    :root {
+        --night: #0E1020; --dusk: #1A1D33; --dusk-2: #232741; --horizon: #34304F;
+        --ember: #E8B07A; --rose: #E38E84; --parchment: #EDE6DA; --muted: #9C99B2;
+        --serif: "Cormorant Garamond", Georgia, serif;
+        --sans: "Plus Jakarta Sans", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--night); color: var(--parchment); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+    a { color: var(--ember); text-underline-offset: 3px; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+
+    /* Hero: the title sits on a horizon with the sun half-risen behind it. */
+    .hero { text-align: center; padding: 72px 0 0; overflow: hidden; }
+    .wordmark { font: italic 600 1.35rem var(--serif); color: var(--ember); margin: 0 0 40px; }
+    h1 { font: 500 clamp(2.9rem, 10vw, 5rem)/1 var(--serif); letter-spacing: -0.01em; margin: 0; position: relative; z-index: 1; }
+    .sky { position: relative; height: 130px; margin-top: -24px; overflow: hidden; }
+    .sun { position: absolute; left: 50%; bottom: -120px; width: 240px; height: 240px; margin-left: -120px; border-radius: 50%;
+           background: radial-gradient(circle, #F6C995 0%, var(--ember) 30%, rgba(227,142,132,.45) 55%, transparent 72%);
+           animation: rise 3s cubic-bezier(.2,.7,.2,1) both; }
+    @keyframes rise { from { transform: translateY(70px); opacity: .3; } }
+    .line { position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--horizon) 15%, var(--ember) 50%, var(--horizon) 85%, transparent); }
+    .lede { max-width: 34em; margin: 32px auto 0; color: var(--muted); font-size: 1.1rem; }
+
+    .sample { font: italic 1.5rem/1.4 var(--serif); color: #D9D1C3; border-left: 2px solid var(--ember); padding-left: 18px; margin: 48px auto; max-width: 28rem; }
+    .sample cite { display: block; font: normal .85rem var(--sans); color: var(--muted); margin-top: 10px; }
+
+    /* Downloads */
+    .downloads { display: grid; gap: 14px; margin: 8px 0 56px; }
+    @media (min-width: 640px) { .downloads { grid-template-columns: 1fr 1fr; } }
+    .get { background: var(--dusk); border-radius: 18px; padding: 24px; display: grid; gap: 12px; align-content: start; }
+    .get.is-yours { outline: 1px solid var(--ember); }
+    .get h2 { font: 600 1.05rem var(--sans); margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .get h2 small { font-weight: 500; font-size: .8rem; color: var(--ember); }
+    .get p { margin: 0; color: var(--muted); font-size: .95rem; }
+    .btn { display: inline-flex; justify-content: center; align-items: center; min-height: 52px; padding: 0 22px; border-radius: 999px;
+           background: var(--ember); color: #24170B; font-weight: 600; text-decoration: none; }
+    .btn.quiet { background: var(--dusk-2); color: var(--parchment); }
+
+    section { padding: 40px 0; border-top: 1px solid var(--horizon); }
+    section h2 { font: 500 2rem/1.15 var(--serif); margin: 0 0 18px; }
+    ol { padding-left: 1.3em; margin: 0; display: grid; gap: 10px; }
+    ol strong, li strong { color: var(--parchment); }
+    li { color: #CFC8BC; }
+    details { background: var(--dusk); border-radius: 14px; padding: 4px 20px; margin-top: 12px; }
+    summary { cursor: pointer; font-weight: 600; padding: 14px 0; }
+    details > :not(summary) { margin-bottom: 18px; }
+    .note { font-size: .92rem; color: var(--muted); }
+    .features { list-style: none; padding: 0; display: grid; gap: 14px; }
+    .features li b { font-weight: 600; color: var(--parchment); }
+    footer { padding: 40px 0 60px; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--horizon); }
+    @media (prefers-reduced-motion: reduce) { .sun { animation: none; } }
+</style>
+</head>
+<body>
+<header class="hero">
+    <div class="wrap">
+        <p class="wordmark">Reveille</p>
+        <h1>Wake up to a poem</h1>
+    </div>
+    <div class="sky" aria-hidden="true"><div class="sun"></div><div class="line"></div></div>
+    <div class="wrap">
+        <p class="lede">An alarm clock that reads you a short poem while your screen brightens like a sunrise. Free, with no account, no ads, and no tracking.</p>
+    </div>
+</header>
+
+<main class="wrap">
+    <blockquote class="sample">Only, here and there, an old sailor,<br>Drunk and asleep in his boots,<br>Catches tigers<br>In red weather.<cite>Wallace Stevens, "Disillusionment of Ten O'Clock"</cite></blockquote>
+
+    <div class="downloads">
+        <div class="get" id="get-android">
+            <h2>Android <small id="android-tag"></small></h2>
+            <p>A real alarm app. It rings even when your phone is locked, and keeps working after a restart.</p>
+            <a class="btn" id="android-link" href="#">Download for Android</a>
+            <a href="#install-android">How to install</a>
+        </div>
+        <div class="get" id="get-iphone">
+            <h2>iPhone <small id="iphone-tag"></small></h2>
+            <p>A web app you add to your Home Screen. It rings while open on your nightstand.</p>
+            <a class="btn quiet" id="iphone-link" href="#">Open Reveille</a>
+            <a href="#install-iphone">How to add it</a>
+        </div>
+    </div>
+
+    <section>
+        <h2>What mornings are like</h2>
+        <ul class="features">
+            <li><b>A poem, not a beep.</b> Short public-domain poems chosen for mornings: something happens, the images surprise you, and the ending stays open.</li>
+            <li><b>A voice you choose.</b> With a free Google Gemini key, a natural voice reads to you and a new poem is found for you every day. Without one, your phone's built-in voice reads.</li>
+            <li><b>It will wake you.</b> The voice fades in gently. If it can't start, or you drift back off, a bell chime climbs to full volume until you're up.</li>
+            <li><b>A few lines before the day starts.</b> Tap "I'm up" and a small journal asks what the poem left you with.</li>
+        </ul>
+    </section>
+
+    <section id="install-android">
+        <h2>Install on Android</h2>
+        <ol>
+            <li>Tap <strong>Download for Android</strong> above. If Chrome warns about the file type, tap <strong>Download anyway</strong>. It warns about every app that isn't from the Play Store.</li>
+            <li>Tap <strong>Open</strong> when the download finishes. If Android says installs from this source aren't allowed, tap <strong>Settings</strong>, turn on <strong>Allow from this source</strong>, and go back.</li>
+            <li>Tap <strong>Install</strong>. If Play Protect doesn't recognise the developer, tap <strong>More details → Install anyway</strong>.</li>
+            <li>Open Reveille and follow the short setup. It walks you through the voice, your first alarm, and the permissions it needs to ring on the lock screen.</li>
+        </ol>
+        <details>
+            <summary>Getting a free Gemini key</summary>
+            <ol>
+                <li>Open <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> and sign in with a Google account.</li>
+                <li>Tap <strong>Create API key</strong>, then <strong>Copy</strong>.</li>
+                <li>Paste it into Reveille's setup (or Settings) and tap <strong>Check</strong>.</li>
+            </ol>
+            <p class="note">It's free for personal use. The key is stored only on your phone and sent only to Google.</p>
+        </details>
+        <details>
+            <summary>An alarm didn't ring</summary>
+            <ol>
+                <li>In Reveille, open <strong>Settings → Alarm permissions</strong>. Every row should have a check mark.</li>
+                <li>Turn up your phone's <strong>alarm</strong> volume (Reveille uses the alarm volume, like the Clock app).</li>
+                <li>On Samsung, Xiaomi, OnePlus, Huawei and Oppo phones: long-press the Reveille icon → <strong>App info → Battery → Unrestricted</strong>.</li>
+            </ol>
+        </details>
+        <p class="note"><a id="android-guide" href="#">Full Android guide</a></p>
+    </section>
+
+    <section id="install-iphone">
+        <h2>Add to iPhone</h2>
+        <ol>
+            <li>Open this page in <strong>Safari</strong> and tap <strong>Open Reveille</strong> above.</li>
+            <li>Tap the <strong>Share</strong> button (the square with an arrow), then <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+            <li>Open Reveille from its new icon and follow the short setup.</li>
+            <li><strong>Every night:</strong> open Reveille, tap <strong>Start nightstand mode</strong>, plug in your phone, and turn the volume up.</li>
+        </ol>
+        <p class="note">Why nightstand mode? Apple only lets App Store apps wake a locked iPhone. Reveille isn't in the App Store, so it needs to stay open on screen overnight, like a bedside clock. <a id="iphone-guide" href="#">Full iPhone guide</a></p>
+    </section>
+</main>
+
+<footer>
+    <div class="wrap">
+        Reveille is made by Vincent Kovar. It's free and open source. <a id="source-link" href="#">See the code on GitHub</a>.
+    </div>
+</footer>
+
+<script>
+    // ============ EDIT THESE ============
+    const LINKS = {
+        // Always serves the newest release.
+        android: "https://github.com/VincentKovar/reveille/releases/latest/download/Reveille.apk",
+        // The iPhone / browser version (GitHub Pages), or wherever you host the www/ folder.
+        webApp: "https://vincentkovar.github.io/reveille/",
+        // The source code.
+        github: "https://github.com/VincentKovar/reveille",
+    };
+    // ====================================
+
+    document.getElementById("android-link").href = LINKS.android;
+    document.getElementById("iphone-link").href = LINKS.webApp;
+    document.getElementById("source-link").href = LINKS.github;
+    document.getElementById("android-guide").href = LINKS.github + "/blob/main/docs/INSTALL-ANDROID.md";
+    document.getElementById("iphone-guide").href = LINKS.github + "/blob/main/docs/INSTALL-IPHONE.md";
+
+    // Put the visitor's own phone first.
+    const ua = navigator.userAgent;
+    const mine = /Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "iphone" : null;
+    if (mine) {
+        const card = document.getElementById("get-" + mine);
+        card.classList.add("is-yours");
+        card.parentElement.prepend(card);
+        document.getElementById(mine + "-tag").textContent = "Your phone";
+    }
+</script>
+</body>
+</html>

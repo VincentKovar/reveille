@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- app_name and title_activity_main are set per edition in app/build.gradle -->
+    <string name="package_name">com.vincentkovar.reveille</string>
+    <string name="custom_url_scheme">com.vincentkovar.reveille</string>
+</resources>

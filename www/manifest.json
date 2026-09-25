@@ -1,0 +1,17 @@
+{
+    "name": "Reveille — Poem Alarm Clock",
+    "short_name": "Reveille",
+    "description": "An alarm clock that wakes you with a poem read aloud.",
+    "id": "./",
+    "start_url": "./index.html",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#0E1020",
+    "theme_color": "#0E1020",
+    "icons": [
+        { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}

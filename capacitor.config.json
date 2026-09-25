@@ -1,0 +1,13 @@
+{
+  "appId": "com.vincentkovar.reveille",
+  "appName": "Reveille",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0E1020"
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK"
+    }
+  }
+}
