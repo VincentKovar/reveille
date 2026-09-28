@@ -97,18 +97,19 @@ npm test
 ```bash
 JAVA_HOME=$(ls -d ~/Developer/jdk-21*/Contents/Home) ANDROID_HOME=~/Library/Android/sdk npm run build:android
 ```
-   This produces both signed APKs in `release/`, plus `Reveille.apk` (the public edition with no version number in its name, for the permanent download link).
+   This produces both signed APKs in `release/`, plus `www/downloads/Reveille.apk` — the actual file people download. It's served as a plain static file from the same domain as the web app, not through GitHub's release-asset redirect, because that redirect (a signed, temporary Azure blob link) gets silently blocked by some phones' built-in security software — Samsung's in particular. Keep it this way.
 3. **Install your edition** on your phone (any option above) and try a test wake-up.
-4. **Commit and publish** the public edition:
+4. **Commit and publish:**
 ```bash
 git add -A && git commit -m "Reveille 2.0.1" && git push
 ```
+   Pushing updates both the iPhone web version and the Android download link automatically (via GitHub Pages, in a minute or two) — nothing else to do.
+5. **(Optional) Tag a GitHub Release too**, for people browsing the repo who want release notes or older versions:
 ```bash
-gh release create v2.0.1 release/Reveille.apk "release/Reveille-2.0.1.apk" --title "Reveille 2.0.1" --notes "What changed…"
+gh release create v2.0.1 "release/Reveille-2.0.1.apk" --title "Reveille 2.0.1" --notes "What changed…"
 ```
-   Pushing also updates the iPhone web version automatically (via GitHub Pages, in a minute or two).
-5. **Your website** needs no change if its Android button uses the permanent link (the download page is set up this way):
-   `https://github.com/VincentKovar/reveille/releases/latest/download/Reveille.apk`
+   Don't point your website or the README at this release asset URL, though — always use the Pages-hosted link below, since that's the one that reliably downloads on every phone:
+   `https://vincentkovar.github.io/reveille/downloads/Reveille.apk`
 
 ---
 
@@ -120,9 +121,7 @@ gh release create v2.0.1 release/Reveille.apk "release/Reveille-2.0.1.apk" --tit
 2. Upload `index.html` to your site (e.g. as `yoursite.com/reveille/`).
 3. Set `AUTHOR_URL` in `www/js/config.js` to your site and release a new version, so the in-app credit links back to you.
 
-**Where should the APK download come from?** Either:
-- **GitHub Releases** (simplest, and the default). The permanent link `https://github.com/VincentKovar/reveille/releases/latest/download/Reveille.apk` always gives the newest version. There's nothing to re-upload on your site.
-- **Your own site.** Upload the `.apk` next to the page and link to it. Some web hosts need `.apk` files served as `application/vnd.android.package-archive`; if phones download it as a `.zip` or text file, that setting is the fix.
+**Where should the APK download come from?** From GitHub Pages (the default, already set up): `https://vincentkovar.github.io/reveille/downloads/Reveille.apk`. It's a plain static file at a permanent URL, updated automatically every time you push a new build. Don't switch this to a GitHub *Releases* asset link — those redirect through a signed, temporary Azure URL that some phones (Samsung's security software, in particular) silently block mid-download. A plain file on a normal domain, like this one, is what actually downloads reliably.
 
 ---
 

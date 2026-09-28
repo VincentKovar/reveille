@@ -14,7 +14,7 @@ Instead of a beeping alarm, Reveille reads you a short public-domain poem while 
 
 | | |
 |---|---|
-| **Android** | [Download the app](https://github.com/VincentKovar/reveille/releases/latest/download/Reveille.apk), then follow the **[Android install guide](docs/INSTALL-ANDROID.md)**. Rings even when your phone is locked. |
+| **Android** | [Download the app](https://vincentkovar.github.io/reveille/downloads/Reveille.apk), then follow the **[Android install guide](docs/INSTALL-ANDROID.md)**. Rings even when your phone is locked. |
 | **iPhone** | Open **[vincentkovar.github.io/reveille](https://vincentkovar.github.io/reveille/)** in Safari and add it to your Home Screen. See the **[iPhone guide](docs/INSTALL-IPHONE.md)**. Rings while open on your nightstand. |
 
 It's free, with no account, no ads, and no tracking. You bring your own (free) Gemini API key, or use your phone's built-in voice with no key at all.
