@@ -247,3 +247,50 @@ export async function setCachedAudio(key, wav) {
         console.warn("Couldn't cache poem audio", e);
     }
 }
+
+/* ---------------- PREVIEW CACHE (IndexedDB) ----------------
+ * Separate from the single "upcoming" slot above: keyed by voice + persona +
+ * poem, so tapping "Listen" on a poem (or "Hear the voice" in Settings) again
+ * reuses the same recording instead of generating fresh speech — and burning
+ * Gemini quota — every single tap. Capped at a handful of entries so it can't
+ * grow forever as someone browses the library. */
+const MAX_PREVIEWS = 6;
+
+export async function getCachedPreview(key) {
+    try {
+        const entry = await audioTx("readonly", s => s.get("preview:" + key));
+        return entry ? entry.wav : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function setCachedPreview(key, wav) {
+    try {
+        const db = await openDb();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE, "readwrite");
+            const store = tx.objectStore(STORE);
+            store.put({ wav, savedAt: Date.now() }, "preview:" + key);
+            // Evict the oldest previews beyond the cap.
+            const cursorReq = store.openCursor();
+            const previews = [];
+            cursorReq.onsuccess = () => {
+                const cursor = cursorReq.result;
+                if (cursor) {
+                    if (String(cursor.key).startsWith("preview:")) {
+                        previews.push({ key: cursor.key, savedAt: cursor.value?.savedAt || 0 });
+                    }
+                    cursor.continue();
+                } else {
+                    previews.sort((a, b) => a.savedAt - b.savedAt);
+                    while (previews.length > MAX_PREVIEWS) store.delete(previews.shift().key);
+                }
+            };
+            tx.oncomplete = () => { db.close(); resolve(); };
+            tx.onerror = () => { db.close(); reject(tx.error); };
+        });
+    } catch (e) {
+        console.warn("Couldn't cache preview audio", e);
+    }
+}

@@ -764,9 +764,7 @@ async function previewPoem(poem, button) {
     const reset = () => { if (state.previewing === poem.id) state.previewing = null; button.innerHTML = label; };
     button.textContent = "Loading…";
     try {
-        const wav = store.getGeminiApiKey()
-            ? await synthesizeSpeech(recitationScript(poem), store.getSetting("voiceName"), persona()).catch(err => { toast(explainGeminiError(err), true); return null; })
-            : null;
+        const wav = store.getGeminiApiKey() ? await previewAudio(poem) : null;
         if (state.previewing !== poem.id) return;
         button.textContent = "Stop";
         if (wav) await platform.playWav(wav, 0, reset);
@@ -775,6 +773,18 @@ async function previewPoem(poem, button) {
         reset();
         toast("Couldn't play audio on this device", true);
     }
+}
+
+/** Reuses a cached recording for repeat "Listen" taps on the same poem/voice/persona,
+ * instead of generating fresh speech — and spending Gemini quota — every time. */
+async function previewAudio(poem) {
+    const key = audioKey(poem);
+    const cached = await store.getCachedPreview(key);
+    if (cached) return cached;
+    const wav = await synthesizeSpeech(recitationScript(poem), store.getSetting("voiceName"), persona())
+        .catch(err => { toast(explainGeminiError(err), true); return null; });
+    if (wav) store.setCachedPreview(key, wav);
+    return wav;
 }
 
 /* ================= JOURNAL ================= */
@@ -890,7 +900,12 @@ export async function testVoice() {
     const line = "Good morning. The fog comes on little cat feet.";
     if (store.getGeminiApiKey()) {
         try {
-            const wav = await synthesizeSpeech(line, store.getSetting("voiceName"), persona(), 20000);
+            const key = `testline|${store.getSetting("voiceName")}|${persona()}`;
+            let wav = await store.getCachedPreview(key);
+            if (!wav) {
+                wav = await synthesizeSpeech(line, store.getSetting("voiceName"), persona(), 20000);
+                store.setCachedPreview(key, wav);
+            }
             await platform.playWav(wav, 0);
             return;
         } catch (err) {
