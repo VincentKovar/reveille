@@ -1,12 +1,15 @@
-# Publishes the web app (www/) to GitHub Pages on every push to main.
-# This is the iPhone / browser version. One-time setup: repo Settings → Pages →
-# Source: "GitHub Actions".
+# Publishes the web app (www/) plus the Android download (downloads/) to GitHub
+# Pages on every push to main. www/ is also what Capacitor packages INTO the
+# Android app itself, so the download file is kept in a separate downloads/
+# folder and merged in only at publish time — never inside www/, or the
+# Android app would end up shipping a copy of its own installer inside itself.
+# One-time setup: repo Settings → Pages → Source: "GitHub Actions".
 name: Publish web app
 
 on:
   push:
     branches: [main]
-    paths: ["www/**"]
+    paths: ["www/**", "downloads/**"]
   workflow_dispatch:
 
 permissions:
@@ -27,8 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
+      - name: Stage site (web app + downloads)
+        run: |
+          mkdir -p _site
+          cp -r www/. _site/
+          mkdir -p _site/downloads
+          cp -r downloads/. _site/downloads/
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: www
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v5

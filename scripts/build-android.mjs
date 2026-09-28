@@ -2,12 +2,15 @@
 //   node scripts/build-android.mjs            → signed release APKs (needs ~/.reveille-signing)
 //   node scripts/build-android.mjs --debug    → debug APKs (no signing key needed)
 //
-// A release build also copies the public edition into www/downloads/Reveille.apk.
-// That file is served as a plain static download from the same domain as the web
-// app (vincentkovar.github.io/reveille/downloads/Reveille.apk) instead of GitHub's
-// release-asset redirect, which some phones' security software (e.g. Samsung)
-// silently blocks because the final URL is a signed, temporary Azure blob link.
-// Commit that file and push so the live site picks it up.
+// A release build also copies the public edition into downloads/Reveille.apk (a
+// sibling of www/, NOT inside it — the Android app packages everything under
+// www/ into itself via Capacitor, so a copy placed inside www/ would embed the
+// app's own installer inside itself). GitHub Pages serves this sibling folder
+// alongside the web app, so the file is a plain static download from the same
+// domain (vincentkovar.github.io/reveille/downloads/Reveille.apk) instead of
+// GitHub's release-asset redirect, which some phones' security software (e.g.
+// Samsung) silently blocks because the final URL is a signed, temporary Azure
+// blob link. Commit that file and push so the live site picks it up.
 import { execSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -37,7 +40,7 @@ for (const [flavor, name] of [['portfolio', `Reveille-${version}.apk`], ['person
 if (!debug) {
     copyFileSync(`release/Reveille-${version}.apk`, 'release/Reveille.apk');
     console.log('→ release/Reveille.apk');
-    mkdirSync('www/downloads', { recursive: true });
-    copyFileSync(`release/Reveille-${version}.apk`, 'www/downloads/Reveille.apk');
-    console.log('→ www/downloads/Reveille.apk (commit and push this)');
+    mkdirSync('downloads', { recursive: true });
+    copyFileSync(`release/Reveille-${version}.apk`, 'downloads/Reveille.apk');
+    console.log('→ downloads/Reveille.apk (commit and push this)');
 }
