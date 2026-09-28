@@ -26,11 +26,19 @@ Reveille isn't in the Google Play Store. You download it straight from the web, 
    - Turn on **Allow from this source**
    - Tap the back arrow
 3. Tap **Install**.
-4. If **Google Play Protect** says it doesn't recognize the developer, tap **More details** → **Install anyway**.
-   This happens with any app that isn't in the Play Store. Reveille's code is public on GitHub for anyone to read.
+4. **Google Play Protect will very likely interrupt here** — sometimes with a mild "doesn't recognize this developer" message, sometimes with a stronger red **"Blocked"** screen. Both are expected for any app outside the Play Store, and neither means anything is wrong with Reveille (its code is public on GitHub for anyone to check).
+   - **Mild version:** tap **More details**, then **Install anyway**.
+   - **"Blocked" version:** Google deliberately hides the override so people don't click through real malware warnings without thinking. Look for:
+     - a small text link near the bottom of the screen (easy to miss — not the big colored button), or
+     - a **⋮** (three-dot) menu in a corner of that screen, or
+     - **Settings → Security and privacy → More security settings → Play Protect**, then finding Reveille and choosing **Install anyway** from there.
+
+     If none of those appear, back out and try tapping the APK file again from **Files → Downloads** rather than through Chrome's "Open" button — the override sometimes only shows up on the second attempt.
 5. Tap **Open**.
 
 > **Tip:** After installing, you can switch **Allow from this source** back off: Settings → Apps → Special app access → Install unknown apps → Chrome.
+
+**Why does Play Protect react so strongly to this one?** Reveille is a brand-new app with no install history yet, and it does things (takes over the screen at alarm time, restarts itself after you reboot your phone) that happen to resemble how lock-screen scareware behaves — so Google's automated scanner is extra cautious the first few times any device installs it. It gets less aggressive over time as more people install it safely. It's the same friction any small alarm-clock app hits when it isn't distributed through the Play Store.
 
 ## Step 3: The setup guide
 
