@@ -19,6 +19,8 @@ Instead of a beeping alarm, Reveille reads you a short public-domain poem while 
 
 It's free, with no account, no ads, and no tracking. You bring your own (free) Gemini API key, or use your phone's built-in voice with no key at all.
 
+**A heads-up on installing:** since Reveille isn't in the Play Store, Android will interrupt the install — you'll need to allow installs from unknown sources, and Google Play Protect will likely show a warning (sometimes a mild "unrecognized developer" prompt, sometimes a stronger red "Blocked" screen). Both are expected for any brand-new app distributed this way, not a sign anything's wrong, and get less aggressive as more people install it. The [Android install guide](docs/INSTALL-ANDROID.md#step-2-install-it) shows exactly where to find the override.
+
 ## What it does
 
 - **Multiple alarms** with repeat days (weekdays, weekends, any combination, or once).
