@@ -34,6 +34,14 @@ export const FAILSAFE_AFTER_POEM_SECONDS = 90;
 // How long the poem voice takes to fade up from quiet to full volume.
 export const VOLUME_RAMP_SECONDS = 20;
 
+// Gemini doesn't always generate speech at full volume, so quiet recordings can
+// sound weak even with the phone's alarm volume maxed out. Recordings are
+// boosted toward this fraction of full scale (0-1) before being played or
+// cached — never turned down, only raised, and capped by SPEECH_MAX_BOOST so
+// a near-silent clip doesn't get amplified into noise.
+export const SPEECH_TARGET_PEAK = 0.92;
+export const SPEECH_MAX_BOOST = 6;
+
 // Gemini voices offered in Settings — a subset of Google's 30 that suit reading verse.
 export const VOICES = [
     { id: "Sulafat", note: "Warm" },

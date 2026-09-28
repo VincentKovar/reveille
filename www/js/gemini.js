@@ -5,7 +5,7 @@
  * first, then the older generateContent API, so the app keeps working
  * across Google's API changes.
  * ---------------------------------------------------- */
-import { GEMINI_TEXT_MODEL, GEMINI_TTS_MODEL } from './config.js';
+import { GEMINI_TEXT_MODEL, GEMINI_TTS_MODEL, SPEECH_TARGET_PEAK, SPEECH_MAX_BOOST } from './config.js';
 import { getGeminiApiKey } from './storage.js';
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -215,13 +215,71 @@ export async function synthesizeSpeech(text, voiceName, persona, timeoutMs = 450
     const audio = extractAudio(data);
     if (!audio) throw new GeminiError("Gemini didn't return any audio.", 500);
     const bytes = base64ToBytes(audio.base64);
-    if (isWav(bytes)) return new Blob([bytes], { type: "audio/wav" });
-    const rate = Number(audio.mimeType.match(/rate=(\d+)/)?.[1]) || 24000;
-    return pcmToWav(bytes, rate);
+
+    let sampleRate, pcmBytes;
+    if (isWav(bytes)) {
+        ({ sampleRate, pcmBytes } = parseWav(bytes));
+    } else {
+        pcmBytes = bytes;
+        sampleRate = Number(audio.mimeType.match(/rate=(\d+)/)?.[1]) || 24000;
+    }
+    return pcmToWav(boostQuietSpeech(pcmBytes), sampleRate);
 }
 
 function isWav(bytes) {
     return bytes.length > 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF";
+}
+
+/** Reads sample rate and raw PCM samples out of a WAV file, scanning chunks properly
+ * rather than assuming a fixed 44-byte header (Google's WAVs are canonical, but this
+ * is cheap insurance). Falls back to a 44-byte offset if no "data" chunk is found. */
+function parseWav(bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let sampleRate = 24000;
+    let pcmBytes = null;
+    let offset = 12; // past "RIFF" + size (4) + "WAVE"
+    while (offset + 8 <= bytes.length) {
+        const id = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
+        const size = view.getUint32(offset + 4, true);
+        const body = offset + 8;
+        if (id === "fmt " && body + 8 <= bytes.length) sampleRate = view.getUint32(body + 4, true);
+        if (id === "data") pcmBytes = bytes.subarray(body, Math.min(body + size, bytes.length));
+        offset = body + size + (size % 2); // chunks are padded to an even length
+    }
+    return { sampleRate, pcmBytes: pcmBytes || bytes.subarray(44) };
+}
+
+/**
+ * Raises quiet 16-bit PCM speech toward SPEECH_TARGET_PEAK of full scale so the
+ * phone's alarm volume at 100% is actually loud — Gemini doesn't always generate
+ * audio at full level. Only ever raises volume, never lowers it, and never
+ * amplifies past SPEECH_MAX_BOOST so a near-silent clip doesn't turn into noise.
+ * Exported for testing; safe to call on any even-length Uint8Array of PCM16 bytes.
+ */
+export function boostQuietSpeech(pcmBytes, targetPeak = SPEECH_TARGET_PEAK, maxGain = SPEECH_MAX_BOOST) {
+    try {
+        const evenLength = pcmBytes.length - (pcmBytes.length % 2);
+        const copy = new Uint8Array(pcmBytes.subarray(0, evenLength)); // fresh, 2-byte-aligned buffer
+        const samples = new Int16Array(copy.buffer);
+
+        let peak = 0;
+        for (let i = 0; i < samples.length; i++) {
+            const abs = samples[i] < 0 ? -samples[i] : samples[i];
+            if (abs > peak) peak = abs;
+        }
+        if (peak === 0) return pcmBytes; // silence: nothing to boost
+
+        const gain = Math.min(maxGain, (targetPeak * 32767) / peak);
+        if (gain <= 1.02) return pcmBytes; // already loud enough; don't touch it
+
+        for (let i = 0; i < samples.length; i++) {
+            samples[i] = Math.max(-32768, Math.min(32767, Math.round(samples[i] * gain)));
+        }
+        return copy;
+    } catch (e) {
+        console.warn("Speech loudness boost failed; playing the original recording", e);
+        return pcmBytes;
+    }
 }
 
 function base64ToBytes(base64) {

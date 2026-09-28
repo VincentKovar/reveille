@@ -5,6 +5,7 @@ import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.media.audiofx.LoudnessEnhancer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -27,6 +28,14 @@ final class AlarmAudio {
     private static final String TAG = "ReveilleAudio";
     private static AlarmAudio instance;
 
+    // Extra loudness on top of the phone's own alarm-volume ceiling. MediaPlayer.setVolume()
+    // and TextToSpeech's volume param are both clamped to 100% of that ceiling — there's no
+    // way to ask them for more. LoudnessEnhancer is the dedicated Android API for exactly
+    // this: a compressor-backed gain boost that goes past that ceiling without hard clipping.
+    // 600 millibels = +6 dB, a noticeable boost that stays clean; some phone speakers
+    // (Samsung's among them) are quiet enough at 100% volume that this matters.
+    private static final int SPEECH_BOOST_MILLIBELS = 600;
+
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AudioAttributes alarmAttrs = new AudioAttributes.Builder()
@@ -40,6 +49,9 @@ final class AlarmAudio {
     private boolean ttsReady;
     private String pendingSpeech;
     private AudioFocusRequest focusRequest;
+    private LoudnessEnhancer poemLoudness;
+    private LoudnessEnhancer speechLoudness;
+    private int speechSessionId = AudioManager.AUDIO_SESSION_ID_GENERATE;
     private long poemStartedElapsed;
     private float poemDurationSec;
     private final Runnable failsafeRunnable = this::startChime;
@@ -105,6 +117,7 @@ final class AlarmAudio {
         mp.setAudioAttributes(alarmAttrs);
         mp.setDataSource(file.getAbsolutePath());
         mp.prepare();
+        attachLoudnessBoost(mp);
         mp.setOnCompletionListener(p -> {
             if (poem == p) {
                 stopPoem();
@@ -138,6 +151,24 @@ final class AlarmAudio {
             try { p.stop(); } catch (Exception ignored) { }
             p.release();
         }
+        if (poemLoudness != null) {
+            try { poemLoudness.release(); } catch (Exception ignored) { }
+            poemLoudness = null;
+        }
+    }
+
+    /** +6 dB past the alarm stream's own ceiling. Not every device has this effect
+     * available, so a failure here just means normal (not boosted) volume. */
+    private void attachLoudnessBoost(MediaPlayer mp) {
+        try {
+            LoudnessEnhancer enhancer = new LoudnessEnhancer(mp.getAudioSessionId());
+            enhancer.setTargetGain(SPEECH_BOOST_MILLIBELS);
+            enhancer.setEnabled(true);
+            poemLoudness = enhancer;
+        } catch (Exception e) {
+            Log.w(TAG, "LoudnessEnhancer unavailable; playing the poem at normal volume", e);
+            poemLoudness = null;
+        }
     }
 
     /* ---------------- Phone's own voice ---------------- */
@@ -155,6 +186,7 @@ final class AlarmAudio {
                 tts.setAudioAttributes(alarmAttrs);
                 tts.setLanguage(Locale.getDefault());
                 tts.setSpeechRate(0.85f);
+                attachSpeechLoudnessBoost();
                 tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override public void onStart(String id) { }
                     @Override public void onDone(String id) { main.post(() -> onVoiceEnded("speechEnded")); }
@@ -177,7 +209,28 @@ final class AlarmAudio {
         requestFocus();
         Bundle params = new Bundle();
         params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_ALARM);
+        if (speechLoudness != null) {
+            // Route this utterance through the audio session we've already boosted.
+            params.putInt(TextToSpeech.Engine.KEY_PARAM_SESSION_ID, speechSessionId);
+        }
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, "poem");
+    }
+
+    /** Same +6 dB boost as the poem recording, applied to the phone's own voice
+     * (used when there's no Gemini key). Needs an explicit session id, generated
+     * up front, so the effect can be attached before the first utterance plays. */
+    private void attachSpeechLoudnessBoost() {
+        try {
+            AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            speechSessionId = am.generateAudioSessionId();
+            LoudnessEnhancer enhancer = new LoudnessEnhancer(speechSessionId);
+            enhancer.setTargetGain(SPEECH_BOOST_MILLIBELS);
+            enhancer.setEnabled(true);
+            speechLoudness = enhancer;
+        } catch (Exception e) {
+            Log.w(TAG, "LoudnessEnhancer unavailable; using the phone's voice at normal volume", e);
+            speechLoudness = null;
+        }
     }
 
     /* ---------------- Shared ---------------- */
