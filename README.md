@@ -1,6 +1,7 @@
 # Reveille
 
 **An alarm clock that wakes you with a poem read aloud.**
+***2.0.5 coming soon***
 
 Instead of a beeping alarm, Reveille reads you a short public-domain poem while the screen brightens like a sunrise. The poems are chosen for mornings: a scene unfolds, the imagery is fresh, and the ending is left open, so you wake up with something to think about. Add a free Google Gemini key and a natural voice reads to you, with a new poem found for you every day.
 
@@ -15,16 +16,16 @@ Instead of a beeping alarm, Reveille reads you a short public-domain poem while 
 | | |
 |---|---|
 | **Android** | [Download the app](https://vincentkovar.github.io/reveille/downloads/Reveille.apk), then follow the **[Android install guide](docs/INSTALL-ANDROID.md)**. Rings even when your phone is locked. |
-| **iPhone** | Open **[vincentkovar.github.io/reveille](https://vincentkovar.github.io/reveille/)** in Safari and add it to your Home Screen. See the **[iPhone guide](docs/INSTALL-IPHONE.md)**. Rings while open on your nightstand. |
+| **iPhone** | Open **[vincentkovar.github.io/reveille](https://vincentkovar.github.io/reveille/)** in Safari and add it to your Home Screen. IMPORTANT: see the **[iPhone guide](docs/INSTALL-IPHONE.md)**. Rings while open on your nightstand. |
 
-It's free, with no account, no ads, and no tracking. You bring your own (free) Gemini API key, or use your phone's built-in voice with no key at all.
+It's free, with no account, no ads, and no tracking. You bring your own (free) Gemini API key.
 
-**A heads-up on installing:** since Reveille isn't in the Play Store, Android will interrupt the install — you'll need to allow installs from unknown sources, and Google Play Protect will likely show a warning (sometimes a mild "unrecognized developer" prompt, sometimes a stronger red "Blocked" screen). Both are expected for any brand-new app distributed this way, not a sign anything's wrong, and get less aggressive as more people install it. The [Android install guide](docs/INSTALL-ANDROID.md#step-2-install-it) shows exactly where to find the override.
+**A heads-up on installing:** As Reveille isn't in the Play Store, Android will interrupt the install. You'll need to allow installs from unknown sources, and Google Play Protect will likely show a warning (sometimes a mild "unrecognized developer" prompt, sometimes a stronger red "Blocked" screen). Both are expected for any brand-new app distributed this way, not a sign anything's wrong, and they will get less aggressive as more people install Reveille. The [Android install guide](docs/INSTALL-ANDROID.md#step-2-install-it) shows exactly where to find the override.
 
 ## What it does
 
 - **Multiple alarms** with repeat days (weekdays, weekends, any combination, or once).
-- **Poem read aloud** by one of 12 Gemini voices, with a delivery style you describe in plain words ("slowly, like waking a friend at sunrise"), or by your phone's own voice.
+- **Poem read aloud** by one of 12 Gemini voices, with a delivery style you describe in plain words ("slowly, like waking a friend at sunrise"), or by your phone's own default voice. I find my default voice too robotic for mornings so strongly suggest using the free API key.
 - **A fresh poem daily**, looked up by Gemini, or pick one for a mood: *"first snow, empty street."* A 30-day history keeps poems from repeating.
 - **Fail-safe wake-up:** the voice fades in gently, and if it can't start (or you drift back to sleep after the poem), a bell chime starts and climbs to full volume until you tap *I'm up*.
 - **Works offline:** your next poem is recorded ahead of time, and all fonts and code are bundled with the app.
@@ -76,4 +77,4 @@ The built-in poems are in the public domain in the United States. Poems found by
 
 Typefaces: [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant) and [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans), both under the SIL Open Font License.
 
-Designed and built by **Vincent Kovar**. Released under the [MIT License](LICENSE): fork it, remix it, make it yours.
+Designed and built by **Vincent Kovar** along with Gemini, Claude, and tolerant friends. Released under the [MIT License](LICENSE): fork it, remix it, make it yours.
