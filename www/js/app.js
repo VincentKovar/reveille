@@ -92,6 +92,8 @@ async function init() {
 
     platform.onRingStart((e) => startRing({ alarmId: e.alarmId, at: e.at }));
     platform.onRingStop((e) => finishRing(e.reason === "dismiss" ? "dismiss" : "snooze", { fromNative: true }));
+    platform.onFallbackStarted(() => { if (state.ring) showFallbackPoem(state.ring); });
+    platform.onSpeechFailed(() => { if (state.ring) $("ringStatus").textContent = voiceNote("failed"); });
     document.addEventListener("visibilitychange", onVisible);
 
     if (!store.isOnboarded()) {
@@ -121,7 +123,7 @@ async function adoptNativeState() {
     // An alarm was dismissed from the notification without opening the app: that poem has been used.
     if (native.lastDismissedAt && native.lastDismissedAt > store.getLastFired()) {
         store.setLastFired(native.lastDismissedAt);
-        consumeUpcomingPoem();
+        if (native.lastDismissedFallback) schedulePrefetch(3000); else consumeUpcomingPoem();
     }
 }
 
@@ -259,6 +261,8 @@ function syncNative() {
     return platform.syncAlarms(state.alarms, state.snooze, {
         snoozeMinutes: Number(store.getSetting("snoozeMinutes")),
         upcomingAudioKey: audioKey(poem),
+        bgSound: store.getSetting("bgSound"),
+        bgVolume: Number(store.getSetting("bgVolume")),
     });
 }
 
@@ -480,19 +484,19 @@ function voiceNote(kind) {
         device: store.getGeminiApiKey()
             ? "Gemini couldn't be reached, so your phone's voice is reading instead"
             : "Read by your phone's voice. Add a Gemini key in Settings for a better one",
-        failed: "The voice couldn't start, so a backup chime will ring",
+        failed: store.getGeminiApiKey()
+            ? "The voice didn't load today. Check your Gemini key in Settings. A backup chime is ringing"
+            : "The voice didn't load today. Add a Gemini key in Settings for a reliable one. A backup chime is ringing",
+        fallback: "Your planned poem wasn't ready, so here's a backup kept for mornings like this",
     }[kind];
 }
 
 export async function startRing({ alarmId = null, at = Date.now(), test = false } = {}) {
     if (state.ring) return;
     const poem = ensureUpcomingPoem();
-    state.ring = { poem, alarmId, test, at, highlightTimer: null };
+    state.ring = { poem, alarmId, test, at, highlightTimer: null, fallback: false, onEnded: null };
 
-    $("ringTitle").textContent = poem.title;
-    $("ringAuthor").textContent = poem.author;
-    $("ringLines").innerHTML = poem.lines.map((l, i) =>
-        l.trim() ? `<p data-line="${i}">${escapeHtml(l)}</p>` : `<p class="gap"></p>`).join("");
+    renderRingPoem(poem);
     $("ringStatus").textContent = "";
     $("ringGreeting").textContent = greeting();
     $("snoozeBtn").textContent = `Snooze ${store.getSetting("snoozeMinutes")} min`;
@@ -507,7 +511,8 @@ export async function startRing({ alarmId = null, at = Date.now(), test = false 
 
     // If nothing is audible within 30 s, the chime takes over.
     await platform.armFailsafe(cfg.FAILSAFE_START_SECONDS).catch(() => {});
-    platform.playAmbient(store.getSetting("bgSound"));
+    // On Android a real alarm's under-voice sound is already playing (AlarmService starts it).
+    if (!platform.isNative || test) platform.playAmbient(store.getSetting("bgSound"), store.getSetting("bgVolume"));
 
     const ring = state.ring;
     const onEnded = () => {
@@ -515,11 +520,18 @@ export async function startRing({ alarmId = null, at = Date.now(), test = false 
         highlightAll();
         platform.armFailsafe(cfg.FAILSAFE_AFTER_POEM_SECONDS).catch(() => {});
     };
+    ring.onEnded = onEnded;
 
-    // Android may already be playing the pre-recorded poem: just follow along on screen.
+    // Android may already be playing the pre-recorded poem (or the bundled fallback): just follow along on screen.
     const native = platform.isNative && !test ? await platform.ringState().catch(() => null) : null;
+    if (native?.fallbackUsed) {
+        await showFallbackPoem(ring);
+        return;
+    }
     if (native?.audioPlaying) {
         platform.onceVoiceEnded(onEnded);
+        // The 30 s fail-safe was just re-armed above; the voice is already playing, so cancel it.
+        await platform.acknowledge().catch(() => {});
         startHighlight(poem, native.audioDuration, native.audioElapsed);
         $("ringStatus").textContent = voiceNote("gemini");
         return;
@@ -527,6 +539,20 @@ export async function startRing({ alarmId = null, at = Date.now(), test = false 
 
     const wav = await getPoemAudio(poem);
     if (state.ring !== ring) return; // dismissed while loading
+
+    if (platform.isNative) {
+        // Android reads the bundled poem itself if Gemini takes too long. If it already has, don't talk over it.
+        const now = await platform.ringState().catch(() => null);
+        if (ring.fallback || now?.fallbackUsed) {
+            if (!ring.fallback) await showFallbackPoem(ring);
+            return;
+        }
+        // Gemini failed outright: the bundled poem is better than the phone's own voice.
+        if (!wav && store.getGeminiApiKey() && await platform.playFallback().then(() => true, () => false)) {
+            await showFallbackPoem(ring);
+            return;
+        }
+    }
     try {
         if (wav) {
             const duration = (await platform.playWav(wav, cfg.VOLUME_RAMP_SECONDS, onEnded)) || await wavDurationSeconds(wav);
@@ -542,6 +568,27 @@ export async function startRing({ alarmId = null, at = Date.now(), test = false 
         console.error("Couldn't play the poem:", err);
         $("ringStatus").textContent = voiceNote("failed");
     }
+}
+
+function renderRingPoem(poem) {
+    $("ringTitle").textContent = poem.title;
+    $("ringAuthor").textContent = poem.author;
+    $("ringLines").innerHTML = poem.lines.map((l, i) =>
+        l.trim() ? `<p data-line="${i}">${escapeHtml(l)}</p>` : `<p class="gap"></p>`).join("");
+}
+
+/** Android is reading the bundled poem instead of the planned one: show that poem and follow along. */
+async function showFallbackPoem(ring) {
+    const poem = LIBRARY_POEMS.find(p => p.id === cfg.FALLBACK_POEM_ID);
+    if (!poem || state.ring !== ring || ring.fallback) return;
+    ring.fallback = true;
+    ring.poem = poem;
+    renderRingPoem(poem);
+    const native = await platform.ringState().catch(() => null);
+    if (state.ring !== ring) return;
+    platform.onceVoiceEnded(ring.onEnded);
+    startHighlight(poem, native?.audioDuration || estimateSpeechSeconds(poem), native?.audioElapsed || 0);
+    $("ringStatus").textContent = voiceNote("fallback");
 }
 
 async function getPoemAudio(poem) {
@@ -636,7 +683,13 @@ async function finishRing(outcome, { fromNative = false } = {}) {
         // Mark as handled up to *now*, so the catch-up check in adoptNativeState()
         // doesn't see Android's dismiss time as a second, unhandled wake-up.
         store.setLastFired(Math.max(store.getLastFired(), ring.at, Date.now()));
-        consumeUpcomingPoem();
+        if (ring.fallback) {
+            // The planned poem wasn't heard, so keep it for tomorrow.
+            state.lastDismissed = { poem: ring.poem, at: Date.now() };
+            schedulePrefetch(3000);
+        } else {
+            consumeUpcomingPoem();
+        }
         await adoptNativeState();
         renderAlarms();
         showTab("journal");
@@ -852,7 +905,21 @@ function bindSettings() {
     });
 
     $("bgSoundSelect").value = store.getSetting("bgSound");
-    $("bgSoundSelect").addEventListener("change", (e) => store.setSetting("bgSound", e.target.value));
+    $("bgSoundSelect").addEventListener("change", (e) => { store.setSetting("bgSound", e.target.value); syncNative().catch(() => {}); });
+
+    // Letting go of the slider plays six seconds of the sound at that level.
+    let sampleTimer = null;
+    $("bgVolume").value = store.getSetting("bgVolume");
+    $("bgVolume").addEventListener("change", (e) => {
+        const percent = Number(e.target.value);
+        store.setSetting("bgVolume", percent);
+        syncNative().catch(() => {});
+        if (state.ring) return;
+        clearTimeout(sampleTimer);
+        unlockAudio();
+        platform.playAmbient(store.getSetting("bgSound"), percent);
+        sampleTimer = setTimeout(() => platform.stopAmbient(), 6000);
+    });
 
     $("snoozeSelect").value = String(store.getSetting("snoozeMinutes"));
     $("snoozeSelect").addEventListener("change", (e) => { store.setSetting("snoozeMinutes", Number(e.target.value)); syncNative().catch(() => {}); });

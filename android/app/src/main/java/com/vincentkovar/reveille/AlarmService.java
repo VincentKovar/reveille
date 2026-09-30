@@ -36,8 +36,17 @@ public class AlarmService extends Service {
 
     static final int FAILSAFE_START_SECONDS = 30;
     static final int FAILSAFE_AFTER_POEM_SECONDS = 90;
+    // No recording ready and no voice playing this long after the alarm fires: read the bundled fallback poem.
+    static final int FALLBACK_AFTER_SECONDS = 10;
     static final int RAMP_SECONDS = 20;
     static final int DEFAULT_SNOOZE_MINUTES = 9;
+    // Player volume for the under-the-voice sound when the Settings slider is at 100% (the voice is at 1.0).
+    // The default slider position, 50%, is half of this.
+    static final float AMBIENT_MAX_VOLUME = 0.4f;
+
+    static float ambientVolume(int sliderPercent) {
+        return AMBIENT_MAX_VOLUME * sliderPercent / 100f;
+    }
     private static final long GIVE_UP_MS = 30 * 60 * 1000L;
 
     private PowerManager.WakeLock wakeLock;
@@ -76,21 +85,27 @@ public class AlarmService extends Service {
         // Bookkeeping: this ring has happened, so book the next one.
         if (store.snoozeAt() > 0 && store.snoozeAt() <= System.currentTimeMillis() + 1000) store.clearSnooze();
         store.disableIfOnce(alarmId);
+        store.setFallbackUsed(false);
         store.setRinging(alarmId, at);
         AlarmScheduler.reschedule(this);
 
         AlarmAudio audio = AlarmAudio.get(this);
         audio.armFailsafe(FAILSAFE_START_SECONDS);
+        audio.startAmbient(store.bgSound(), ambientVolume(store.bgVolume()));
 
-        // Play the pre-recorded poem right away if we have it; otherwise the app screen reads it.
+        // Play the pre-recorded poem right away if we have it; otherwise the app screen asks
+        // Gemini for it, and if that hasn't produced a voice in time, the bundled poem reads instead.
+        boolean started = false;
         if (store.hasFreshAudio()) {
             try {
                 audio.playFile(store.audioFile(), RAMP_SECONDS);
                 audio.acknowledge();
+                started = true;
             } catch (Exception e) {
                 Log.w(TAG, "Couldn't play pre-recorded poem; waiting for the app", e);
             }
         }
+        if (!started) audio.armFallback(FALLBACK_AFTER_SECONDS);
 
         handler.removeCallbacks(giveUp);
         handler.postDelayed(giveUp, GIVE_UP_MS);
@@ -100,14 +115,16 @@ public class AlarmService extends Service {
     /** End the wake-up. reason: "dismiss" | "snooze" | "timeout". */
     private void finish(String reason, int snoozeMinutes) {
         AlarmStore store = new AlarmStore(this);
+        boolean fallback = store.fallbackUsed();
         AlarmAudio.get(this).stopAll();
         long now = System.currentTimeMillis();
 
         if ("snooze".equals(reason)) {
             store.setSnooze(now + snoozeMinutes * 60_000L, store.ringAlarmId());
         } else if (store.ringing()) {
-            store.markDismissed(now);
-            store.discardAudio();
+            store.markDismissed(now, fallback);
+            // The planned poem wasn't heard if the fallback read instead; keep its recording for tomorrow.
+            if (!fallback) store.discardAudio();
         }
         store.clearRinging();
         AlarmScheduler.reschedule(this);

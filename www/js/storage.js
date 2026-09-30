@@ -18,6 +18,7 @@ const KEYS = {
     voiceName: "reveille_voice_name",
     voicePersona: "reveille_voice_persona",
     bgSound: "reveille_bg_sound",
+    bgVolume: "reveille_bg_volume",
     snoozeMinutes: "reveille_snooze_minutes",
     use24h: "reveille_use_24h",
     journalEntries: "reveille_journal_entries",
@@ -59,6 +60,7 @@ const SETTING_DEFAULTS = {
     voiceName: "Sulafat",
     voicePersona: null, // filled from config at read time
     bgSound: "bowl",
+    bgVolume: 50, // percent; 50 is the level tried and liked on Android
     snoozeMinutes: 9,
     use24h: false,
 };

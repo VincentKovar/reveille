@@ -31,6 +31,11 @@ export const FAILSAFE_START_SECONDS = 30;
 // "I'm up" or "Snooze" within this many seconds.
 export const FAILSAFE_AFTER_POEM_SECONDS = 90;
 
+// Android: if Gemini's voice isn't playing 10 s after the alarm fires (FALLBACK_AFTER_SECONDS in
+// AlarmService.java), a bundled recording reads this built-in poem instead. Record it with
+// scripts/make-fallback-poem.mjs; the voice is Sulafat with DEFAULT_PERSONA.
+export const FALLBACK_POEM_ID = "crane-desert";
+
 // How long the poem voice takes to fade up from quiet to full volume.
 export const VOLUME_RAMP_SECONDS = 20;
 

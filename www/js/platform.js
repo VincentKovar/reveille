@@ -48,6 +48,13 @@ const android = {
     onRingStart(cb) { plugin.addListener("ringStarted", cb); },
     onRingStop(cb) { plugin.addListener("ringStopped", cb); },
 
+    /** Android started reading the bundled poem because the planned voice wasn't ready. */
+    onFallbackStarted(cb) { plugin.addListener("fallbackStarted", cb); },
+    async playFallback() { return plugin.playFallback(); },
+
+    /** The phone has no working voice engine, so nothing will be read; the backup chime takes over. */
+    onSpeechFailed(cb) { plugin.addListener("speechFailed", cb); },
+
     /** Android started the poem itself; call back when it finishes. */
     async onceVoiceEnded(cb) {
         const handle = await plugin.addListener("playbackEnded", () => { handle.remove(); cb(); });
@@ -70,8 +77,9 @@ const android = {
     },
 
     async stopAudio() { await plugin.stopAudio(); },
-    playAmbient: sound.playAmbient,
-    stopAmbient: sound.stopAmbient,
+    /** Plays on the alarm channel like the voice does. A real alarm's sound is started by Android itself. */
+    async playAmbient(type, volume) { await plugin.playAmbient({ type, volume }); },
+    async stopAmbient() { await plugin.stopAmbient(); },
 
     async dismiss() { await plugin.dismiss(); },
     async snooze(minutes) { return plugin.snooze({ minutes }); },
@@ -100,6 +108,9 @@ const browser = {
     async onceVoiceEnded() {},
     onRingStart() {},
     onRingStop() {},
+    onFallbackStarted() {},
+    onSpeechFailed() {},
+    async playFallback() { throw new Error("No bundled fallback poem in the browser"); },
 
     async acknowledge() {
         clearTimeout(failsafeTimer);

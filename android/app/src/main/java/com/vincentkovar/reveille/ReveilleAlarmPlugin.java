@@ -100,6 +100,10 @@ public class ReveilleAlarmPlugin extends Plugin {
             getContext().getSharedPreferences("reveille_alarms", Context.MODE_PRIVATE)
                     .edit().putInt("snoozeMinutes", snoozeMinutes).apply();
         }
+        String bgSound = call.getString("bgSound");
+        if (bgSound != null) store.setBgSound(bgSound);
+        Integer bgVolume = call.getInt("bgVolume");
+        if (bgVolume != null) store.setBgVolume(bgVolume);
         String upcomingKey = call.getString("upcomingAudioKey");
         if (upcomingKey != null) store.setUpcomingKey(upcomingKey);
 
@@ -119,6 +123,8 @@ public class ReveilleAlarmPlugin extends Plugin {
         r.put("alarmId", store.ringAlarmId());
         r.put("at", store.ringAt());
         r.put("lastDismissedAt", store.lastDismissedAt());
+        r.put("lastDismissedFallback", store.lastDismissedFallback());
+        r.put("fallbackUsed", store.fallbackUsed());
         r.put("audioPlaying", audio.isPoemPlaying());
         r.put("audioElapsed", audio.poemElapsedSec());
         r.put("audioDuration", audio.poemDurationSec());
@@ -169,8 +175,19 @@ public class ReveilleAlarmPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Read the bundled fallback poem now (Gemini failed or was too slow). */
+    @PluginMethod
+    public void playFallback(PluginCall call) {
+        AlarmAudio audio = AlarmAudio.get(getContext());
+        if (!audio.playFallbackPoem()) { call.reject("No fallback poem in this build"); return; }
+        JSObject r = new JSObject();
+        r.put("duration", audio.poemDurationSec());
+        call.resolve(r);
+    }
+
     @PluginMethod
     public void playAudio(PluginCall call) {
+        if (new AlarmStore(getContext()).fallbackUsed()) { call.reject("The fallback poem is already reading"); return; }
         String base64 = call.getString("base64");
         int ramp = call.getInt("rampSeconds", 0);
         try {
@@ -185,6 +202,20 @@ public class ReveilleAlarmPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Couldn't play audio", e);
         }
+    }
+
+    /** The under-the-voice sound, for a test wake-up or a Settings sample (a real alarm starts it in AlarmService). */
+    @PluginMethod
+    public void playAmbient(PluginCall call) {
+        int percent = call.getInt("volume", new AlarmStore(getContext()).bgVolume());
+        AlarmAudio.get(getContext()).startAmbient(call.getString("type", "bowl"), AlarmService.ambientVolume(percent));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopAmbient(PluginCall call) {
+        AlarmAudio.get(getContext()).stopAmbient();
+        call.resolve();
     }
 
     @PluginMethod

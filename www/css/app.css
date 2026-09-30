@@ -461,6 +461,7 @@ select {
 }
 .field-row > span { flex: 1; }
 .field-row select { width: auto; max-width: 60%; }
+.field-row input[type="range"] { flex: none; width: 55%; accent-color: var(--ember); }
 
 .inline-form { display: flex; gap: 8px; }
 .inline-form input { flex: 1; min-width: 0; }

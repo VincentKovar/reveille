@@ -25,6 +25,10 @@ final class AlarmStore {
     private static final String K_LAST_DISMISSED = "lastDismissedAt";
     private static final String K_UPCOMING_KEY = "upcomingAudioKey";
     private static final String K_CACHED_KEY = "cachedAudioKey";
+    private static final String K_FALLBACK_USED = "fallbackUsed";
+    private static final String K_BG_SOUND = "bgSound";
+    private static final String K_BG_VOLUME = "bgVolume";
+    private static final String K_DISMISSED_FALLBACK = "lastDismissedFallback";
 
     private final SharedPreferences prefs;
     private final Context context;
@@ -92,8 +96,32 @@ final class AlarmStore {
 
     long lastDismissedAt() { return prefs.getLong(K_LAST_DISMISSED, 0); }
 
-    void markDismissed(long at) {
-        prefs.edit().putLong(K_LAST_DISMISSED, at).apply();
+    /** True if the last dismissed ring was read by the bundled fallback poem, not the planned one. */
+    boolean lastDismissedFallback() { return prefs.getBoolean(K_DISMISSED_FALLBACK, false); }
+
+    void markDismissed(long at, boolean fallback) {
+        prefs.edit().putLong(K_LAST_DISMISSED, at).putBoolean(K_DISMISSED_FALLBACK, fallback).apply();
+    }
+
+    /** The bundled fallback poem is being (or was) read during the current ring. */
+    boolean fallbackUsed() { return prefs.getBoolean(K_FALLBACK_USED, false); }
+
+    void setFallbackUsed(boolean used) {
+        prefs.edit().putBoolean(K_FALLBACK_USED, used).commit();
+    }
+
+    /** The "under the voice" sound: "bowl" | "chimes" | "rain" | "none". */
+    String bgSound() { return prefs.getString(K_BG_SOUND, "bowl"); }
+
+    void setBgSound(String sound) {
+        prefs.edit().putString(K_BG_SOUND, sound).apply();
+    }
+
+    /** The Settings slider, 0-100 (50 is the default). */
+    int bgVolume() { return prefs.getInt(K_BG_VOLUME, 50); }
+
+    void setBgVolume(int percent) {
+        prefs.edit().putInt(K_BG_VOLUME, Math.max(0, Math.min(100, percent))).apply();
     }
 
     /* ---- Pre-recorded poem audio ----

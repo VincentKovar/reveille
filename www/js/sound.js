@@ -50,13 +50,14 @@ function bell(c, out, when, freq, peak, length) {
 /* ---------------- AMBIENT BED UNDER THE POEM ---------------- */
 let ambientStop = null;
 
-export function playAmbient(type) {
+/** percent: the Settings slider, 0-100. 50 is the original loudness; 100 is double. */
+export function playAmbient(type, percent = 50) {
     stopAmbient();
     const c = audioContext();
     if (!c || type === "none") return;
     const out = c.createGain();
     out.gain.value = 0;
-    out.gain.linearRampToValueAtTime(1, c.currentTime + 4);
+    out.gain.linearRampToValueAtTime(percent / 50, c.currentTime + 4);
     out.connect(c.destination);
     const t = c.currentTime;
     const nodes = [];
