@@ -33,6 +33,14 @@ export function explainGeminiError(err) {
     }
 }
 
+/** Whether the same call might work if tried again soon: a dropped connection, a timeout or a Google
+ * hiccup, yes; a rejected key, retired model or used-up quota, no (those need the person, or a new day). */
+export function isTransientGeminiError(err) {
+    const status = err?.status;
+    if (status === undefined) return true;
+    return status === 408 || status >= 500;
+}
+
 async function post(path, body, timeoutMs) {
     const apiKey = getGeminiApiKey();
     if (!apiKey) throw new GeminiError("No API key", 0);

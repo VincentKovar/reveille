@@ -6,7 +6,7 @@ import * as cfg from './config.js';
 import * as store from './storage.js';
 import { LIBRARY_POEMS, pickPoem } from './poems.js';
 import { nextRing, describeDays, describeCountdown, formatTime, newAlarmId, WEEKDAYS, WEEKEND, EVERY_DAY } from './schedule.js';
-import { fetchPoem, synthesizeSpeech, recitationScript, wavDurationSeconds, checkApiKey, explainGeminiError } from './gemini.js';
+import { fetchPoem, synthesizeSpeech, recitationScript, wavDurationSeconds, checkApiKey, explainGeminiError, isTransientGeminiError } from './gemini.js';
 import { platform } from './platform.js';
 import { unlockAudio } from './sound.js';
 import { runSetup } from './setup.js';
@@ -139,6 +139,8 @@ async function onVisible() {
     refreshPermissions();
     const ringing = await platform.ringState().catch(() => null);
     if (ringing?.ringing) startRing({ alarmId: ringing.alarmId, at: ringing.at });
+    voiceRetries = 0; // Reopening the app earns a fresh set of retries; a cached recording makes this cheap.
+    schedulePrefetch(3000);
 }
 
 function applyEdition() {
@@ -252,6 +254,7 @@ function saveAlarms() {
         toast("Couldn't schedule the alarm with Android. Check alarm permissions in Settings.", true);
     });
     renderAlarms();
+    renderVoiceStatus();
     tick();
     schedulePrefetch(8000);
 }
@@ -403,6 +406,7 @@ function renderNextPoem() {
         <p class="by">${escapeHtml(poem.author)}</p>
         <div class="verse">${verseHtml(poem.lines.filter(l => l.trim()), 3)}</div>
         ${source}`;
+    renderVoiceStatus();
 }
 
 function chooseAnotherPoem() {
@@ -445,15 +449,53 @@ function persona() {
 
 let prefetchTimer = null;
 let prefetching = false;
+let prefetchAgain = false;
+let voiceRetries = 0;
 let nativeCachedKey = null;
 function schedulePrefetch(delayMs) {
     clearTimeout(prefetchTimer);
     prefetchTimer = setTimeout(prefetchVoice, delayMs);
 }
 
+/** What the person sees as "Tomorrow's voice": ready, getting ready, or not ready (and why). */
+let voiceState = { key: null, status: "preparing" };
+
+function setVoiceState(key, status) {
+    voiceState = { key, status };
+    renderVoiceStatus();
+}
+
+function renderVoiceStatus() {
+    let text = "";
+    if (store.getGeminiApiKey() && nextRing(state.alarms, state.snooze)) {
+        // A recording state only counts for the poem, voice and style it was made for.
+        const status = voiceState.key === audioKey(ensureUpcomingPoem()) ? voiceState.status : "preparing";
+        const backup = platform.isNative ? "A backup poem will play." : "It will be made at wake-up.";
+        text = {
+            ready: "Tomorrow's voice: ready",
+            preparing: "Tomorrow's voice: getting ready…",
+            quota: `Tomorrow's voice: not ready, Google's free limit is used up. ${backup}`,
+            failed: `Tomorrow's voice: not ready. ${backup}`,
+        }[status];
+    }
+    for (const id of ["voiceReady", "nsVoice"]) {
+        $(id).textContent = text;
+        $(id).hidden = !text;
+    }
+}
+
+/** After Google says the free limit is used up, asking again right away only gets the same answer. */
+function voiceQuotaPaused() {
+    return Date.now() - store.getVoiceQuotaHitTime() < cfg.VOICE_QUOTA_PAUSE_HOURS * 3600000;
+}
+
 /** Record tomorrow's poem ahead of time, so waking up doesn't depend on the internet. */
 async function prefetchVoice() {
-    if (prefetching || state.ring || !store.getGeminiApiKey()) return;
+    if (prefetching) {
+        prefetchAgain = true; // Something changed mid-recording (voice, alarm, key): go again when this one ends.
+        return;
+    }
+    if (state.ring || !store.getGeminiApiKey()) return;
     if (!nextRing(state.alarms, state.snooze)) return;
     const poem = ensureUpcomingPoem();
     const key = audioKey(poem);
@@ -462,6 +504,8 @@ async function prefetchVoice() {
         await syncNative();
         let wav = await store.getCachedAudio(key);
         if (!wav) {
+            if (voiceQuotaPaused()) return setVoiceState(key, "quota");
+            setVoiceState(key, "preparing");
             wav = await synthesizeSpeech(recitationScript(poem), store.getSetting("voiceName"), persona());
             await store.setCachedAudio(key, wav);
         }
@@ -469,10 +513,25 @@ async function prefetchVoice() {
             await platform.cacheAudio(key, wav);
             nativeCachedKey = key;
         }
+        voiceRetries = 0;
+        setVoiceState(key, "ready");
     } catch (err) {
         console.warn("Voice prefetch failed (will try again at wake-up):", err);
+        if (err?.status === 429) {
+            store.setVoiceQuotaHitTime(Date.now());
+            setVoiceState(key, "quota");
+        } else if (isTransientGeminiError(err) && voiceRetries < cfg.VOICE_RETRY_MINUTES.length) {
+            schedulePrefetch(cfg.VOICE_RETRY_MINUTES[voiceRetries++] * 60000);
+            setVoiceState(key, "preparing");
+        } else {
+            setVoiceState(key, "failed");
+        }
     } finally {
         prefetching = false;
+        if (prefetchAgain) {
+            prefetchAgain = false;
+            schedulePrefetch(1000);
+        }
     }
 }
 
@@ -938,6 +997,7 @@ function bindSettings() {
 }
 
 function updateKeyStatus() {
+    renderVoiceStatus();
     const has = !!store.getGeminiApiKey();
     $("voiceStatus").textContent = has ? "" : "Without a key, your phone's built-in voice reads the poem.";
     if (!has) $("keyStatus").textContent = "";
@@ -952,6 +1012,8 @@ export async function verifyKey(statusEl) {
     try {
         await checkApiKey();
         statusEl.textContent = "Key works. Gemini will read your poems.";
+        store.setVoiceQuotaHitTime(0); // A new key may have its own quota.
+        voiceRetries = 0;
         schedulePrefetch(2000);
         maybeFetchDailyPoem();
         return true;
