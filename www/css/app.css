@@ -394,6 +394,7 @@ svg { width: 20px; height: 20px; flex: none; }
 }
 .verse p { margin: 0; }
 .poem-card .source { font-size: var(--t-xs); color: var(--faint); margin-top: 12px; }
+.voice-ready { font-size: var(--t-xs); color: var(--muted); margin: 10px 0 14px; }
 
 /* ---------------- POEMS TAB ---------------- */
 .segmented {
@@ -673,6 +674,7 @@ select {
 }
 .ns-clock { font-family: var(--serif); font-size: clamp(5rem, 30vw, 12rem); line-height: 1; font-variant-numeric: lining-nums; }
 .ns-next { font-size: var(--t-sm); }
+.ns-voice { font-size: var(--t-xs); color: #6B5C4B; margin-top: 8px; }
 .ns-hint { font-size: var(--t-xs); color: #3E3328; margin-top: 30px; }
 
 /* ---------------- SETUP ---------------- */

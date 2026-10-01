@@ -23,6 +23,14 @@ export const POEM_HISTORY_WINDOW_DAYS = 30;
 export const GEMINI_TEXT_MODEL = "gemini-3.8-flash";
 export const GEMINI_TTS_MODEL = "gemini-3.8-flash-tts";
 
+// If recording tomorrow's voice fails for a passing reason (no signal, Google hiccup), the app
+// tries again after each of these delays (minutes) while it stays open, then gives up until the
+// next time it's opened or an alarm is dismissed.
+export const VOICE_RETRY_MINUTES = [2, 10, 30];
+
+// After Google says the free limit is used up (429), the app stops asking for this many hours.
+export const VOICE_QUOTA_PAUSE_HOURS = 1;
+
 // Fail-safe: if the poem voice hasn't started this many seconds after the alarm
 // fires, a backup chime starts and slowly gets louder.
 export const FAILSAFE_START_SECONDS = 30;

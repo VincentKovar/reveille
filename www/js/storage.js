@@ -26,6 +26,7 @@ const KEYS = {
     upcomingPoem: "reveille_upcoming_poem",
     discoveredPoems: "reveille_discovered_poems",
     lastOracleFetch: "reveille_last_oracle_fetch",
+    voiceQuotaHit: "reveille_voice_quota_hit",
     // Pre-2.0 single-alarm keys, read once for migration.
     legacyAlarmTime: "reveille_alarm_time",
     legacyAlarmEnabled: "reveille_alarm_enabled",
@@ -189,6 +190,15 @@ export function getLastOracleFetchTime() {
 
 export function setLastOracleFetchTime(ts) {
     save(KEYS.lastOracleFetch, ts);
+}
+
+/** When Google last answered "free limit used up" to a voice recording (0 = never). */
+export function getVoiceQuotaHitTime() {
+    return load(KEYS.voiceQuotaHit, 0);
+}
+
+export function setVoiceQuotaHitTime(ts) {
+    save(KEYS.voiceQuotaHit, ts);
 }
 
 /* ---------------- JOURNAL ---------------- */

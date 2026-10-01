@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boostQuietSpeech } from '../www/js/gemini.js';
+import { boostQuietSpeech, isTransientGeminiError, GeminiError } from '../www/js/gemini.js';
 
 function pcm16(values) {
     const bytes = new Uint8Array(values.length * 2);
@@ -54,4 +54,17 @@ test('clamps to the valid 16-bit range even at the gain cap', () => {
 test('handles an odd-length buffer without throwing', () => {
     const odd = new Uint8Array([1, 2, 3]); // not a multiple of 2 bytes
     assert.doesNotThrow(() => boostQuietSpeech(odd));
+});
+
+test('retries passing trouble: no connection, timeouts, Google hiccups', () => {
+    assert.equal(isTransientGeminiError(new TypeError('Failed to fetch')), true);
+    assert.equal(isTransientGeminiError(Object.assign(new Error('aborted'), { name: 'AbortError' })), true);
+    assert.equal(isTransientGeminiError(new GeminiError('overloaded', 503)), true);
+    assert.equal(isTransientGeminiError(new GeminiError('timeout', 408)), true);
+});
+
+test('does not retry what a retry cannot fix: used-up quota, bad key, retired model', () => {
+    for (const status of [400, 401, 403, 404, 429]) {
+        assert.equal(isTransientGeminiError(new GeminiError('nope', status)), false, `status ${status}`);
+    }
 });
