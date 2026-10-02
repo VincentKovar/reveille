@@ -5,7 +5,7 @@
  * first, then the older generateContent API, so the app keeps working
  * across Google's API changes.
  * ---------------------------------------------------- */
-import { GEMINI_TEXT_MODEL, GEMINI_TEXT_BACKUP_MODEL, GEMINI_TTS_MODEL, SPEECH_TARGET_PEAK, SPEECH_MAX_BOOST } from './config.js';
+import { GEMINI_TEXT_MODEL, GEMINI_TEXT_BACKUP_MODELS, GEMINI_TTS_MODEL, SPEECH_TARGET_PEAK, SPEECH_MAX_BOOST } from './config.js';
 import { getGeminiApiKey } from './storage.js';
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -148,7 +148,7 @@ export async function withBackupModel(models, attempt) {
 
 /** Ask for JSON matching `schema`; returns the parsed object. */
 function askJson(system, userText, schema) {
-    return withBackupModel([GEMINI_TEXT_MODEL, GEMINI_TEXT_BACKUP_MODEL], (model) => askJsonWith(model, system, userText, schema));
+    return withBackupModel([GEMINI_TEXT_MODEL, ...GEMINI_TEXT_BACKUP_MODELS], (model) => askJsonWith(model, system, userText, schema));
 }
 
 async function askJsonWith(model, system, userText, schema) {

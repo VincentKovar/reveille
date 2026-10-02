@@ -1,6 +1,6 @@
 {
   "name": "reveille",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "private": true,
   "description": "An alarm clock that wakes you with a poem read aloud.",
   "type": "module",

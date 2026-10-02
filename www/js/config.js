@@ -37,9 +37,10 @@ export const POEM_HISTORY_WINDOW_DAYS = 30;
 export const GEMINI_TEXT_MODEL = "gemini-3.8-flash";
 export const GEMINI_TTS_MODEL = "gemini-3.8-flash-tts";
 
-// Poem judging and search words try this older model if the main one is overloaded or out of quota.
-// It has its own capacity. The voice (TTS) has no backup: a different voice model would sound different.
-export const GEMINI_TEXT_BACKUP_MODEL = "gemini-3.7-flash";
+// Poem judging and search words try these models in turn if the main one is overloaded or out of
+// quota. They have their own capacity. The voice (TTS) has no backup: a different voice model would
+// sound different.
+export const GEMINI_TEXT_BACKUP_MODELS = ["gemini-3.7-flash", "gemini-3.5-flash-lite"];
 
 // If recording tomorrow's voice fails for a passing reason (no signal, Google hiccup), the app
 // tries again after each of these delays (minutes) while it stays open, then gives up until the
