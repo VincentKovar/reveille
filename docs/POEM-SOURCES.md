@@ -119,3 +119,8 @@ judges. Gemini's answer is only indexes and labels, validated by
   narrative or built on a fresh image; open-ended last line; no slurs or
   demeaning language. The last rule was added as a guard for old verse and can
   be removed from the prompt in `gemini.js`.
+- If Google's main text model is overloaded, slow or out of quota, the judging
+  and search-word calls retry once on `GEMINI_TEXT_BACKUP_MODEL` (an older
+  model with its own capacity). Rejected keys and retired models are not
+  retried. The voice has no backup, since a different voice model would sound
+  different.

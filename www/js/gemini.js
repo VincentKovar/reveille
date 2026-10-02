@@ -5,7 +5,7 @@
  * first, then the older generateContent API, so the app keeps working
  * across Google's API changes.
  * ---------------------------------------------------- */
-import { GEMINI_TEXT_MODEL, GEMINI_TTS_MODEL, SPEECH_TARGET_PEAK, SPEECH_MAX_BOOST } from './config.js';
+import { GEMINI_TEXT_MODEL, GEMINI_TEXT_BACKUP_MODEL, GEMINI_TTS_MODEL, SPEECH_TARGET_PEAK, SPEECH_MAX_BOOST } from './config.js';
 import { getGeminiApiKey } from './storage.js';
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -128,16 +128,38 @@ export async function checkApiKey() {
 
 export const POEM_SEASONS = ["autumn", "winter", "spring", "summer", "rain", "any"];
 
+/**
+ * Runs `attempt(model)` with each model in turn until one works. Moves on to the next model only for
+ * trouble another model might not have: an overloaded or slow Google, or a used-up quota (which is
+ * counted per model). Anything else, such as a rejected key, is thrown straight away.
+ */
+export async function withBackupModel(models, attempt) {
+    let lastError;
+    for (const model of models) {
+        try {
+            return await attempt(model);
+        } catch (err) {
+            lastError = err;
+            if (!isTransientGeminiError(err) && err?.status !== 429) throw err;
+        }
+    }
+    throw lastError;
+}
+
 /** Ask for JSON matching `schema`; returns the parsed object. */
-async function askJson(system, userText, schema) {
+function askJson(system, userText, schema) {
+    return withBackupModel([GEMINI_TEXT_MODEL, GEMINI_TEXT_BACKUP_MODEL], (model) => askJsonWith(model, system, userText, schema));
+}
+
+async function askJsonWith(model, system, userText, schema) {
     const data = await withFallback(
         () => post("interactions", {
-            model: GEMINI_TEXT_MODEL, store: false,
+            model, store: false,
             system_instruction: system,
             input: [{ type: "user_input", content: [{ type: "text", text: userText }] }],
             response_format: { type: "text", mime_type: "application/json", schema },
         }, 30000),
-        () => post(`models/${GEMINI_TEXT_MODEL}:generateContent`, {
+        () => post(`models/${model}:generateContent`, {
             contents: [{ parts: [{ text: userText }] }],
             systemInstruction: { parts: [{ text: system }] },
             generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema },
