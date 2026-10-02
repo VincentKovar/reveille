@@ -445,6 +445,10 @@ async function topUpPoemPool() {
         if (found.length) renderPoemList();
     } catch (err) {
         console.warn("Poem discovery failed:", err);
+        // A passing problem shouldn't cost a whole day: let the next open, after a short wait, try again.
+        if (err instanceof DiscoveryError || isTransientGeminiError(err)) {
+            store.setLastOracleFetchTime(Date.now() - (cfg.ORACLE_PREFETCH_INTERVAL_HOURS - cfg.DISCOVERY_RETRY_HOURS) * 3600000);
+        }
     }
 }
 

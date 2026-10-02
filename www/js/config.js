@@ -21,6 +21,10 @@ export const ORACLE_PREFETCH_INTERVAL_HOURS = 20;
 export const POETRYDB_URL = "https://poetrydb.org";
 export const DISCOVERY_POOL_SIZE = 10;
 
+// If a top-up fails for a passing reason (Google overloaded, no signal, PoetryDB down), it may be
+// tried again this many hours later (the next time the app is opened) instead of waiting the full day.
+export const DISCOVERY_RETRY_HOURS = 1;
+
 // Discovered poems must have this many lines (blank stanza-break lines don't count).
 export const DISCOVERY_MIN_LINES = 4;
 export const DISCOVERY_MAX_LINES = 30;
