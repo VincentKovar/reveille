@@ -120,7 +120,7 @@ judges. Gemini's answer is only indexes and labels, validated by
   demeaning language. The last rule was added as a guard for old verse and can
   be removed from the prompt in `gemini.js`.
 - If Google's main text model is overloaded, slow or out of quota, the judging
-  and search-word calls retry once on `GEMINI_TEXT_BACKUP_MODEL` (an older
-  model with its own capacity). Rejected keys and retired models are not
+  and search-word calls try each model in `GEMINI_TEXT_BACKUP_MODELS` in turn (an older
+  model, then a lighter one, each with its own capacity). Rejected keys and retired models are not
   retried. The voice has no backup, since a different voice model would sound
   different.
