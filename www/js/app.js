@@ -5,8 +5,9 @@
 import * as cfg from './config.js';
 import * as store from './storage.js';
 import { LIBRARY_POEMS, pickPoem } from './poems.js';
+import { discoverForPool, discoverForMood, DiscoveryError } from './discovery.js';
 import { nextRing, describeDays, describeCountdown, formatTime, newAlarmId, WEEKDAYS, WEEKEND, EVERY_DAY } from './schedule.js';
-import { fetchPoem, synthesizeSpeech, recitationScript, wavDurationSeconds, checkApiKey, explainGeminiError, isTransientGeminiError } from './gemini.js';
+import { synthesizeSpeech, recitationScript, wavDurationSeconds, checkApiKey, explainGeminiError, isTransientGeminiError } from './gemini.js';
 import { platform } from './platform.js';
 import { unlockAudio } from './sound.js';
 import { runSetup } from './setup.js';
@@ -105,7 +106,7 @@ async function init() {
     const ringing = await platform.ringState().catch(() => null);
     if (ringing?.ringing) startRing({ alarmId: ringing.alarmId, at: ringing.at });
 
-    maybeFetchDailyPoem();
+    topUpPoemPool();
     schedulePrefetch(4000);
 }
 
@@ -419,23 +420,31 @@ function chooseAnotherPoem() {
 }
 
 /* ---------- Background prep: fresh daily poem + pre-recorded voice ---------- */
-async function maybeFetchDailyPoem() {
+/** Ids of poems the app already has or used lately, which discovery must not offer again. */
+function knownPoemIds() {
+    const recent = store.getRecentlyUsed(cfg.POEM_HISTORY_WINDOW_DAYS).map(e => e.id);
+    return [...allPoems().map(p => p.id), ...recent];
+}
+
+/** Keeps about DISCOVERY_POOL_SIZE discovered poems in stock that haven't been used yet. */
+async function topUpPoemPool() {
     if (!store.getGeminiApiKey()) return;
     const hours = (Date.now() - store.getLastOracleFetchTime()) / 3600000;
     if (hours < cfg.ORACLE_PREFETCH_INTERVAL_HOURS) return;
-    store.setLastOracleFetchTime(Date.now()); // Don't retry on every open if Google is down.
+    const recent = new Set(store.getRecentlyUsed(cfg.POEM_HISTORY_WINDOW_DAYS).map(e => e.id));
+    const unused = store.getDiscoveredPoems().filter(p => !recent.has(p.id)).length;
+    if (unused >= cfg.DISCOVERY_POOL_SIZE) return;
+    store.setLastOracleFetchTime(Date.now()); // Don't retry on every open if Google or PoetryDB is down.
     try {
-        const filter = store.getSetting("poemFilter");
-        const season = store.getSetting("season");
-        const recent = store.getRecentlyUsed(cfg.POEM_HISTORY_WINDOW_DAYS).map(e => e.title);
-        const poem = await fetchPoem(`a ${season === "rain" ? "rainy" : season} morning`, filter, recent);
-        store.addDiscoveredPoem(poem);
-        store.setUpcomingPoem(poem);
-        renderNextPoem();
-        renderPoemList();
-        schedulePrefetch(1000);
+        const found = await discoverForPool({
+            needed: cfg.DISCOVERY_POOL_SIZE - unused,
+            excludeIds: knownPoemIds(),
+            filter: "all",
+        });
+        found.forEach(p => store.addDiscoveredPoem(p));
+        if (found.length) renderPoemList();
     } catch (err) {
-        console.warn("Daily poem lookup failed:", err);
+        console.warn("Poem discovery failed:", err);
     }
 }
 
@@ -813,8 +822,8 @@ function bindPoems() {
         btn.disabled = true;
         btn.textContent = "Finding…";
         try {
-            const recent = store.getRecentlyUsed(cfg.POEM_HISTORY_WINDOW_DAYS).map(e => e.title);
-            const poem = await fetchPoem(mood, store.getSetting("poemFilter"), recent);
+            const poem = await discoverForMood(mood, { excludeIds: knownPoemIds(), filter: store.getSetting("poemFilter") });
+            if (!poem) { toast("Nothing in the library fit that mood closely. Try other words.", true); return; }
             store.addDiscoveredPoem(poem);
             store.setUpcomingPoem(poem);
             renderPoemList();
@@ -823,7 +832,7 @@ function bindPoems() {
             $("oracleMood").value = "";
             toast(`Found “${poem.title}”. It's your next poem.`);
         } catch (err) {
-            toast(explainGeminiError(err), true);
+            toast(err instanceof DiscoveryError ? err.message : explainGeminiError(err), true);
         } finally {
             btn.disabled = false;
             btn.textContent = "Find";
@@ -852,7 +861,7 @@ function bindPoems() {
 
 function renderPoemList() {
     $("poemList").innerHTML = allPoems().map(p => {
-        const tags = [p.archetype === "surprising" ? "Strange image" : "A scene", p.source === "gemini" ? "found by Gemini" : p.season].join(", ");
+        const tags = [p.archetype === "surprising" ? "Strange image" : "A scene", p.source === "gemini" ? "found by Gemini" : p.source ? "discovered" : p.season].join(", ");
         return `<li class="poem-item">
             <p class="tags">${escapeHtml(tags)}</p>
             <h3>${escapeHtml(p.title)}</h3>
@@ -861,7 +870,7 @@ function renderPoemList() {
             <div class="poem-actions">
                 <button class="text-btn" type="button" data-action="listen" data-id="${escapeHtml(p.id)}"><svg><use href="#i-play"/></svg>Listen</button>
                 <button class="text-btn" type="button" data-action="use" data-id="${escapeHtml(p.id)}"><svg><use href="#i-alarm"/></svg>Wake to this</button>
-                ${p.source === "gemini" ? `<button class="text-btn" type="button" data-action="remove" data-id="${escapeHtml(p.id)}">Remove</button>` : ""}
+                ${p.source ? `<button class="text-btn" type="button" data-action="remove" data-id="${escapeHtml(p.id)}">Remove</button>` : ""}
             </div>
         </li>`;
     }).join("");
@@ -1015,7 +1024,7 @@ export async function verifyKey(statusEl) {
         store.setVoiceQuotaHitTime(0); // A new key may have its own quota.
         voiceRetries = 0;
         schedulePrefetch(2000);
-        maybeFetchDailyPoem();
+        topUpPoemPool();
         return true;
     } catch (err) {
         statusEl.textContent = explainGeminiError(err);

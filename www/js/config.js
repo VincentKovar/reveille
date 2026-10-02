@@ -15,6 +15,16 @@ export const SUPPORT_LINK = "";
 // Hours that must pass before the app looks up a fresh poem from Gemini.
 export const ORACLE_PREFETCH_INTERVAL_HOURS = 20;
 
+// Poem discovery. The words of every discovered poem come from PoetryDB (public-domain texts);
+// Gemini only judges which ones fit and never supplies text. The app keeps about this many
+// discovered poems that haven't been used yet, topping up on the schedule above.
+export const POETRYDB_URL = "https://poetrydb.org";
+export const DISCOVERY_POOL_SIZE = 10;
+
+// Discovered poems must have this many lines (blank stanza-break lines don't count).
+export const DISCOVERY_MIN_LINES = 4;
+export const DISCOVERY_MAX_LINES = 30;
+
 // Days a poem stays "recently used" and won't be picked again.
 export const POEM_HISTORY_WINDOW_DAYS = 30;
 

@@ -122,70 +122,114 @@ export async function checkApiKey() {
     return extractText(data).length > 0;
 }
 
-/* ---------------- POEM LOOKUP ---------------- */
-const POEM_SCHEMA = {
-    type: "object",
-    properties: {
-        title: { type: "string" },
-        author: { type: "string" },
-        lines: { type: "array", items: { type: "string" } },
-    },
-    required: ["title", "author", "lines"],
-};
+/* ---------------- POEM JUDGING ---------------- */
+// Gemini never supplies poem text. Discovery (discovery.js) fetches real public-domain poems and
+// asks Gemini only which of them fit, so a discovered poem can't be a misquotation.
 
-/**
- * Ask Gemini for a real public-domain poem matching a mood.
- * Returns { id, title, author, archetype, season, lines, source } — throws GeminiError on failure.
- */
-export async function fetchPoem(mood, archetype, recentTitles) {
-    const avoid = recentTitles.length
-        ? `\nDo not choose any of these recently used poems: ${recentTitles.join("; ")}.`
-        : "";
-    const style = archetype === "surprising"
-        ? "built on a fresh, surprising central image or metaphor"
-        : "narrative or quasi-narrative: a scene unfolds or something happens";
-    const system = `You are a poetry scholar specialising in public-domain poetry.
-Choose one real, published poem that is in the public domain in the United States (first published before 1930), by a real poet, quoted exactly — never invent or paraphrase lines.
-The poem must be:
-1. Under 20 lines.
-2. ${style}.
-3. Open-ended: the central idea is left unresolved at the final line.
-Represent stanza breaks as an empty string in "lines".${avoid}`;
-    const userText = `Find a public-domain poem for this morning's mood: ${mood}`;
+export const POEM_SEASONS = ["autumn", "winter", "spring", "summer", "rain", "any"];
 
+/** Ask for JSON matching `schema`; returns the parsed object. */
+async function askJson(system, userText, schema) {
     const data = await withFallback(
         () => post("interactions", {
             model: GEMINI_TEXT_MODEL, store: false,
             system_instruction: system,
             input: [{ type: "user_input", content: [{ type: "text", text: userText }] }],
-            response_format: { type: "text", mime_type: "application/json", schema: POEM_SCHEMA },
+            response_format: { type: "text", mime_type: "application/json", schema },
         }, 30000),
         () => post(`models/${GEMINI_TEXT_MODEL}:generateContent`, {
             contents: [{ parts: [{ text: userText }] }],
             systemInstruction: { parts: [{ text: system }] },
-            generationConfig: { responseMimeType: "application/json", responseJsonSchema: POEM_SCHEMA },
+            generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema },
         }, 30000),
     );
-
     const text = extractText(data).trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
-    let poem;
     try {
-        poem = JSON.parse(text);
+        return JSON.parse(text);
     } catch {
-        throw new GeminiError("Gemini returned something that wasn't a poem.", 500);
+        throw new GeminiError("Gemini returned something that wasn't JSON.", 500);
     }
-    if (!poem?.title || !Array.isArray(poem.lines) || poem.lines.filter(l => l.trim()).length < 2) {
-        throw new GeminiError("Gemini returned an incomplete poem.", 500);
+}
+
+const JUDGE_SCHEMA = {
+    type: "object",
+    properties: {
+        verdicts: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    index: { type: "integer" },
+                    accept: { type: "boolean" },
+                    archetype: { type: "string" },
+                    season: { type: "string" },
+                },
+                required: ["index", "accept", "archetype", "season"],
+            },
+        },
+        best: { type: "integer" },
+    },
+    required: ["verdicts", "best"],
+};
+
+const WORDS_SCHEMA = {
+    type: "object",
+    properties: { words: { type: "array", items: { type: "string" } } },
+    required: ["words"],
+};
+
+/** The numbered candidate list shown to Gemini. */
+export function candidatesPrompt(candidates) {
+    return candidates.map((p, i) =>
+        `[${i}] "${p.title}" by ${p.author}\n${p.lines.map(l => l.trim()).join("\n")}`).join("\n\n");
+}
+
+/**
+ * Reads Gemini's verdicts, trusting nothing: indexes outside the list, repeats and unknown labels are
+ * dropped or defaulted. Returns { accepted: [{ index, archetype, season }], best } where best is the
+ * index of one accepted poem, or -1.
+ */
+export function parseVerdicts(result, count) {
+    const accepted = [];
+    const seen = new Set();
+    for (const v of Array.isArray(result?.verdicts) ? result.verdicts : []) {
+        if (!Number.isInteger(v?.index) || v.index < 0 || v.index >= count || seen.has(v.index)) continue;
+        seen.add(v.index);
+        if (v.accept !== true) continue;
+        accepted.push({
+            index: v.index,
+            archetype: v.archetype === "surprising" ? "surprising" : "narrative",
+            season: POEM_SEASONS.includes(v.season) ? v.season : "any",
+        });
     }
-    return {
-        id: "gemini-" + Date.now(),
-        title: String(poem.title),
-        author: String(poem.author || "Unknown"),
-        lines: poem.lines.map(String).slice(0, 40),
-        archetype,
-        season: "gemini",
-        source: "gemini",
-    };
+    const best = accepted.some(a => a.index === result?.best) ? result.best : -1;
+    return { accepted, best };
+}
+
+/**
+ * Judge real poems against Reveille's selection rules. `candidates` are { title, author, lines }.
+ * With a mood, also picks the accepted poem that fits it best; `filter` is "narrative", "surprising" or "all".
+ * Returns { accepted, best } as parseVerdicts does — throws GeminiError on failure.
+ */
+export async function judgePoems(candidates, { mood = "", filter = "all" } = {}) {
+    const system = `You choose poems for an alarm clock that wakes people by reading one aloud. You are given numbered public-domain poems. Judge only the text given: never quote, rewrite or add lines.
+Accept a poem only if all of these are true:
+1. It is complete: a whole poem, not an excerpt, a fragment or a numbered part of a longer work.
+2. It is narrative or quasi-narrative (a scene unfolds or something happens), or it is built on a fresh, surprising image. A static lyric about abstract feeling, or an argument, is not enough.
+3. It is open-ended: the last line does not fully resolve or moralise the central idea.
+4. It is free of slurs and demeaning language about people.
+Return a verdict for every poem. For accepted poems, set "archetype" to "narrative" if something happens or a scene unfolds, otherwise "surprising". Set "season" to the best fit among ${POEM_SEASONS.join(", ")} ("rain" means a wet or stormy day, "any" means no particular season). Return the same values for rejected poems.
+Set "best" to the index of the accepted poem that best fits the mood${filter === "all" ? "" : ` (prefer a ${filter} poem)`}, or -1 if there is no mood or no accepted poem fits.`;
+    const userText = `${mood ? `Mood: ${mood}\n\n` : "Mood: none\n\n"}${candidatesPrompt(candidates)}`;
+    return parseVerdicts(await askJson(system, userText, JUDGE_SCHEMA), candidates.length);
+}
+
+/** Plain words likely to appear in the lines of a poem matching a mood, for searching the poem library. */
+export async function suggestSearchWords(mood) {
+    const system = `You help search a library of classic English poems by the words in their lines.
+Given a mood or scene, give up to 5 single lowercase words (plain concrete nouns or verbs, no phrases) likely to appear in the lines of a poem that suits it.`;
+    const result = await askJson(system, `Mood: ${mood}`, WORDS_SCHEMA);
+    return Array.isArray(result?.words) ? result.words.map(String) : [];
 }
 
 /* ---------------- VOICE ---------------- */

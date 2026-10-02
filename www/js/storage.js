@@ -169,7 +169,7 @@ export function setUpcomingPoem(poem) {
     if (poem) save(KEYS.upcomingPoem, poem); else remove(KEYS.upcomingPoem);
 }
 
-/** Poems Gemini has found for you, kept so they stay in your library. */
+/** Poems found by discovery (and older ones Gemini wrote out), kept so they stay in your library. */
 export function getDiscoveredPoems() {
     return load(KEYS.discoveredPoems, []);
 }
