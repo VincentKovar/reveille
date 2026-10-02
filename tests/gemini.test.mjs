@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boostQuietSpeech, isTransientGeminiError, GeminiError } from '../www/js/gemini.js';
+import { boostQuietSpeech, isTransientGeminiError, GeminiError, parseVerdicts, candidatesPrompt } from '../www/js/gemini.js';
 
 function pcm16(values) {
     const bytes = new Uint8Array(values.length * 2);
@@ -67,4 +67,37 @@ test('does not retry what a retry cannot fix: used-up quota, bad key, retired mo
     for (const status of [400, 401, 403, 404, 429]) {
         assert.equal(isTransientGeminiError(new GeminiError('nope', status)), false, `status ${status}`);
     }
+});
+
+test('parseVerdicts keeps accepted poems and labels, and ignores nonsense', () => {
+    const result = {
+        verdicts: [
+            { index: 0, accept: true, archetype: 'surprising', season: 'rain' },
+            { index: 1, accept: false, archetype: 'narrative', season: 'any' },
+            { index: 2, accept: true, archetype: 'weird', season: 'monsoon' }, // unknown labels get defaults
+            { index: 2, accept: true, archetype: 'surprising', season: 'winter' }, // repeat of an index
+            { index: 9, accept: true, archetype: 'narrative', season: 'any' },  // outside the list
+            { index: 'x', accept: true },
+            { index: 3, accept: 'yes' },                                          // only true accepts
+        ],
+        best: 2,
+    };
+    const { accepted, best } = parseVerdicts(result, 4);
+    assert.deepEqual(accepted, [
+        { index: 0, archetype: 'surprising', season: 'rain' },
+        { index: 2, archetype: 'narrative', season: 'any' },
+    ]);
+    assert.equal(best, 2);
+});
+
+test('parseVerdicts only allows a best poem that was accepted', () => {
+    const verdicts = [{ index: 0, accept: true, archetype: 'narrative', season: 'any' }, { index: 1, accept: false, archetype: 'narrative', season: 'any' }];
+    assert.equal(parseVerdicts({ verdicts, best: 1 }, 2).best, -1);
+    assert.equal(parseVerdicts({ verdicts, best: -1 }, 2).best, -1);
+    assert.deepEqual(parseVerdicts(null, 2), { accepted: [], best: -1 });
+});
+
+test('candidatesPrompt numbers each poem with its title, author and text', () => {
+    const text = candidatesPrompt([{ title: 'One', author: 'A', lines: [' x ', '', 'y'] }, { title: 'Two', author: 'B', lines: ['z'] }]);
+    assert.equal(text, '[0] "One" by A\nx\n\ny\n\n[1] "Two" by B\nz');
 });
