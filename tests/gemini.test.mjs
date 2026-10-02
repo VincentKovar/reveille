@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boostQuietSpeech, isTransientGeminiError, GeminiError, parseVerdicts, candidatesPrompt } from '../www/js/gemini.js';
+import { boostQuietSpeech, isTransientGeminiError, GeminiError, parseVerdicts, candidatesPrompt, withBackupModel } from '../www/js/gemini.js';
 
 function pcm16(values) {
     const bytes = new Uint8Array(values.length * 2);
@@ -100,4 +100,40 @@ test('parseVerdicts only allows a best poem that was accepted', () => {
 test('candidatesPrompt numbers each poem with its title, author and text', () => {
     const text = candidatesPrompt([{ title: 'One', author: 'A', lines: [' x ', '', 'y'] }, { title: 'Two', author: 'B', lines: ['z'] }]);
     assert.equal(text, '[0] "One" by A\nx\n\ny\n\n[1] "Two" by B\nz');
+});
+
+test('withBackupModel uses the first model when it works', async () => {
+    const tried = [];
+    const result = await withBackupModel(['main', 'backup'], async (m) => { tried.push(m); return `ok ${m}`; });
+    assert.equal(result, 'ok main');
+    assert.deepEqual(tried, ['main']);
+});
+
+test('withBackupModel moves to the backup when Google is overloaded, slow or out of quota', async () => {
+    const trouble = [new GeminiError('overloaded', 503), new GeminiError('quota', 429),
+        Object.assign(new Error('aborted'), { name: 'AbortError' }), new TypeError('Failed to fetch')];
+    for (const err of trouble) {
+        const tried = [];
+        const result = await withBackupModel(['main', 'backup'], async (m) => {
+            tried.push(m);
+            if (m === 'main') throw err;
+            return 'ok backup';
+        });
+        assert.equal(result, 'ok backup');
+        assert.deepEqual(tried, ['main', 'backup']);
+    }
+});
+
+test('withBackupModel does not try the backup for a rejected key or retired model', async () => {
+    for (const status of [400, 401, 403, 404]) {
+        const tried = [];
+        await assert.rejects(withBackupModel(['main', 'backup'], async (m) => { tried.push(m); throw new GeminiError('no', status); }));
+        assert.deepEqual(tried, ['main']);
+    }
+});
+
+test('withBackupModel reports the last error when every model fails', async () => {
+    await assert.rejects(
+        withBackupModel(['main', 'backup'], async (m) => { throw new GeminiError(`down ${m}`, 503); }),
+        /down backup/);
 });
