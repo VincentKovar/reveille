@@ -1,7 +1,7 @@
 # Reveille
 
 **An alarm clock that wakes you with a poem read aloud.**
-***2.0.5 coming soon***
+***2.2 coming soon***
 
 Instead of a beeping alarm, Reveille reads you a short public-domain poem while the screen brightens like a sunrise. The poems are chosen for mornings: a scene unfolds, the imagery is fresh, and the ending is left open, so you wake up with something to think about. Add a free Google Gemini key and a natural voice reads to you, with a new poem found for you every day.
 
